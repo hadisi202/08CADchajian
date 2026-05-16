@@ -1,0 +1,614 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Windows;
+using System.Windows.Interop;
+using Application = Autodesk.AutoCAD.ApplicationServices.Core.Application;
+using Exception = System.Exception;
+using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.ApplicationServices.Core;
+using Autodesk.AutoCAD.DatabaseServices;
+using Autodesk.AutoCAD.EditorInput;
+using Autodesk.AutoCAD.Runtime;
+
+namespace FurniturePlugin;
+
+public partial class MyPlugin
+{
+	[CommandMethod("PLXG")]
+	public void SetPanelInfoBatch()
+	{
+		try
+		{
+			Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+			if (mdiActiveDocument == null)
+			{
+				System.Windows.MessageBox.Show("没有活动的 AutoCAD 文档。", "错误", MessageBoxButton.OK, MessageBoxImage.Hand);
+				return;
+			}
+			Database database = mdiActiveDocument.Database;
+			Editor editor = mdiActiveDocument.Editor;
+			RestorePreviousHighlight(database);
+			PromptSelectionOptions val = new PromptSelectionOptions
+			{
+				MessageForAdding = "\n璇烽€夋嫨瑕佹壒閲忓鐞嗙殑3D瀹炰綋鏉夸欢: ",
+				MessageForRemoval = "\n绉婚櫎閫夋嫨: "
+			};
+			SelectionFilter val2 = new SelectionFilter((TypedValue[])(object)new TypedValue[1]
+			{
+				new TypedValue(0, (object)"3DSOLID")
+			});
+			PromptSelectionResult selection = editor.GetSelection(val, val2);
+			if ((int)selection.Status != 5100)
+			{
+				if ((int)selection.Status == -5002)
+				{
+					editor.WriteMessage("\n鎿嶄綔宸插彇娑堛€?");
+				}
+				return;
+			}
+			SelectionSet value = selection.Value;
+			ObjectId[] objectIds = value.GetObjectIds();
+			if (objectIds.Length == 0)
+			{
+				editor.WriteMessage("\n娌℃湁閫夋嫨浠讳綍鏉夸欢銆?");
+				return;
+			}
+			editor.WriteMessage($"\n宸查€夋嫨 {objectIds.Length} 涓?D瀹炰綋銆?");
+			List<BatchEditItem> list = new List<BatchEditItem>();
+			Transaction val3 = database.TransactionManager.StartTransaction();
+			try
+			{
+				ObjectId[] array = objectIds;
+				for (int i = 0; i < array.Length; i++)
+				{
+					ObjectId val4 = array[i];
+					try
+					{
+						DBObject obj = val3.GetObject(val4, (OpenMode)0);
+						Solid3d val5 = (Solid3d)(object)((obj is Solid3d) ? obj : null);
+						if (val5 != null)
+						{
+							PanelInfo panelInfo = GetPanelInfo((DBObject)val5) ?? new PanelInfo();
+							PanelInfoListItem panelInfoListItem = new BatchEditItem();
+							Handle handle = val4.Handle;
+							item.EntityId = handle.Value.ToString();
+							item.OrderId = panelInfo.OrderId;
+							item.CabinetId = panelInfo.CabinetId;
+							item.PanelName = panelInfo.PanelName;
+							item.Material = panelInfo.Material;
+							item.Length = panelInfo.Length;
+							item.Width = panelInfo.Width;
+							item.Height = panelInfo.Height;
+							item.EdgeBanding = panelInfo.EdgeBanding;
+							item.Paint = panelInfo.Paint;
+							item.IsArcPanel = panelInfo.IsArcPanel;
+							BatchEditItem bitem = item;
+							list.Add(item);
+						}
+					}
+					catch (Exception ex)
+					{
+						editor.WriteMessage($"\n璇诲彇瀹炰綋 {val4} 淇℃伅鏃跺嚭閿? {ex.Message}");
+					}
+				}
+				val3.Commit();
+			}
+			finally
+			{
+				((IDisposable)val3)?.Dispose();
+			}
+			try
+			{
+				BatchEditWindow batchEditWindow = new BatchEditWindow(list);
+				WindowInteropHelper windowInteropHelper = new WindowInteropHelper(batchEditWindow)
+				{
+					Owner = Application.MainWindow.Handle
+				};
+				if (batchEditWindow.ShowDialog() != true)
+				{
+					editor.WriteMessage("\n鎵归噺鎿嶄綔宸插彇娑堛€?");
+				}
+				else
+				{
+					editor.WriteMessage("\n鎵归噺淇敼鎿嶄綔瀹屾垚銆?");
+				}
+			}
+			catch (Exception ex2)
+			{
+				editor.WriteMessage("\n鏄剧ず鎵归噺璁剧疆绐楀彛鏃跺嚭閿? " + ex2.Message);
+			}
+		}
+		catch (Exception ex3)
+		{
+			Document mdiActiveDocument2 = Application.DocumentManager.MdiActiveDocument;
+			Editor val6 = ((mdiActiveDocument2 != null) ? mdiActiveDocument2.Editor : null);
+			if (val6 != null)
+			{
+				val6.WriteMessage("\n鎵ц鎵归噺澶勭悊鍛戒护鏃跺嚭閿? " + ex3.Message);
+			}
+			System.Windows.MessageBox.Show("鎵ц鎵归噺澶勭悊鏃跺嚭閿? " + ex3.Message, "閿欒", MessageBoxButton.OK, MessageBoxImage.Hand);
+		}
+	}
+
+	[CommandMethod("ViewPanelInfoList")]
+	public void ViewPanelInfoList()
+	{
+		try
+		{
+			Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+			if (mdiActiveDocument == null)
+			{
+				System.Windows.MessageBox.Show("没有活动的 AutoCAD 文档。", "错误", MessageBoxButton.OK, MessageBoxImage.Hand);
+				return;
+			}
+			Database database = mdiActiveDocument.Database;
+			Editor editor = mdiActiveDocument.Editor;
+			RestorePreviousHighlight(database);
+			PromptSelectionOptions val = new PromptSelectionOptions
+			{
+				MessageForAdding = "\n璇烽€夋嫨瑕佹煡鐪嬬殑3D瀹炰綋鏉夸欢: ",
+				MessageForRemoval = "\n绉婚櫎閫夋嫨: "
+			};
+			SelectionFilter val2 = new SelectionFilter((TypedValue[])(object)new TypedValue[1]
+			{
+				new TypedValue(0, (object)"3DSOLID")
+			});
+			PromptSelectionResult selection = editor.GetSelection(val, val2);
+			if ((int)selection.Status != 5100)
+			{
+				if ((int)selection.Status == -5002)
+				{
+					editor.WriteMessage("\n鎿嶄綔宸插彇娑堛€?");
+				}
+				return;
+			}
+			ObjectId[] objectIds = selection.Value.GetObjectIds();
+			if (objectIds.Length == 0)
+			{
+				editor.WriteMessage("\n娌℃湁閫夋嫨浠讳綍鏉夸欢銆?");
+				return;
+			}
+			editor.WriteMessage($"\n宸查€夋嫨 {objectIds.Length} 涓?D瀹炰綋杩涜鏌ョ湅銆?");
+			try
+			{
+				editor.SetImpliedSelection((ObjectId[])(object)new ObjectId[0]);
+			}
+			catch
+			{
+			}
+			try
+			{
+				PanelInfoListWindow panelInfoListWindow = new PanelInfoListWindow(new List<ObjectId>(objectIds));
+				Application.ShowModelessWindow((System.Windows.Window)panelInfoListWindow);
+				try
+				{
+					Application.MainWindow.Focus();
+				}
+				catch
+				{
+				}
+			}
+			catch (Exception ex)
+			{
+				editor.WriteMessage("\n鏄剧ず鏉夸欢淇℃伅鍒楄〃绐楀彛鏃跺嚭閿? " + ex.Message);
+			}
+		}
+		catch (Exception ex2)
+		{
+			Document mdiActiveDocument2 = Application.DocumentManager.MdiActiveDocument;
+			Editor val3 = ((mdiActiveDocument2 != null) ? mdiActiveDocument2.Editor : null);
+			if (val3 != null)
+			{
+				val3.WriteMessage("\n鎵ц鏌ョ湅鏉夸欢淇℃伅鍒楄〃鍛戒护鏃跺嚭閿? " + ex2.Message);
+			}
+			System.Windows.MessageBox.Show("鎵ц鏌ョ湅鏉夸欢淇℃伅鍒楄〃鏃跺嚭閿? " + ex2.Message, "閿欒", MessageBoxButton.OK, MessageBoxImage.Hand);
+		}
+	}
+
+	[CommandMethod("ExportPanelInfoToCsv")]
+	public void ExportPanelInfoToCsv()
+	{
+		try
+		{
+			Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+			if (mdiActiveDocument == null)
+			{
+				System.Windows.MessageBox.Show("没有活动的 AutoCAD 文档。", "错误", MessageBoxButton.OK, MessageBoxImage.Hand);
+				return;
+			}
+			Database database = mdiActiveDocument.Database;
+			Editor editor = mdiActiveDocument.Editor;
+			RestorePreviousHighlight(database);
+			PromptSelectionOptions val = new PromptSelectionOptions
+			{
+				MessageForAdding = "\n璇烽€夋嫨瑕佸鍑烘暟鎹殑3D瀹炰綋鏉夸欢: ",
+				MessageForRemoval = "\n绉婚櫎閫夋嫨: "
+			};
+			SelectionFilter val2 = new SelectionFilter((TypedValue[])(object)new TypedValue[1]
+			{
+				new TypedValue(0, (object)"3DSOLID")
+			});
+			PromptSelectionResult selection = editor.GetSelection(val, val2);
+			if ((int)selection.Status != 5100)
+			{
+				if ((int)selection.Status == -5002)
+				{
+					editor.WriteMessage("\n鎿嶄綔宸插彇娑堛€?");
+				}
+				return;
+			}
+			ObjectId[] objectIds = selection.Value.GetObjectIds();
+			if (objectIds.Length == 0)
+			{
+				editor.WriteMessage("\n娌℃湁閫夋嫨浠讳綍鏉夸欢銆?");
+				return;
+			}
+			editor.WriteMessage($"\n宸查€夋嫨 {objectIds.Length} 涓?D瀹炰綋杩涜瀵煎嚭銆?");
+			Transaction val3 = database.TransactionManager.StartTransaction();
+			try
+			{
+				List<PanelInfo> list = new List<PanelInfo>();
+				List<string> list2 = new List<string>();
+				int num = 0;
+				string text = null;
+				ObjectId[] array = objectIds;
+				for (int i = 0; i < array.Length; i++)
+				{
+					ObjectId val4 = array[i];
+					try
+					{
+						DBObject obj = val3.GetObject(val4, (OpenMode)0);
+						Solid3d val5 = (Solid3d)(object)((obj is Solid3d) ? obj : null);
+						if (val5 != null)
+						{
+							PanelInfo panelInfo = GetPanelInfo((DBObject)val5);
+							Handle handle;
+							if (panelInfo != null)
+							{
+								handle = val4.Handle;
+								panelInfo.EntityId = handle.Value.ToString();
+								list.Add(panelInfo);
+								if (text == null)
+								{
+									text = panelInfo.OrderId;
+								}
+								num++;
+								continue;
+							}
+							try
+							{
+								PanelInfo panelInfo2 = new PanelInfo();
+								CalculateAndSetDimensions(val5, panelInfo2);
+								panelInfo2.PanelName = $"鏈懡鍚嶆澘浠禵{num + 1}";
+								handle = val4.Handle;
+								panelInfo2.EntityId = handle.Value.ToString();
+								list.Add(panelInfo2);
+								num++;
+							}
+							catch (Exception ex)
+							{
+								list2.Add($"瀹炰綋 {val4}: 璁＄畻灏哄澶辫触 - {ex.Message}");
+								editor.WriteMessage($"\n璁＄畻瀹炰綋 {val4} 灏哄鏃跺嚭閿? {ex.Message}");
+							}
+						}
+						else
+						{
+							list2.Add($"瀹炰綋 {val4}: 涓嶆槸鏈夋晥鐨?D瀹炰綋");
+						}
+					}
+					catch (Exception ex2)
+					{
+						list2.Add($"瀹炰綋 {val4}: {ex2.Message}");
+						editor.WriteMessage($"\n澶勭悊瀹炰綋 {val4} 鏃跺嚭閿? {ex2.Message}");
+					}
+				}
+				val3.Commit();
+				editor.WriteMessage($"\n鎴愬姛澶勭悊 {num} 涓疄浣擄紝澶辫触 {list2.Count} 涓€?");
+				if (list2.Count > 0)
+				{
+					int num2 = Math.Min(3, list2.Count);
+					for (int j = 0; j < num2; j++)
+					{
+						editor.WriteMessage("\n  - " + list2[j]);
+					}
+					if (list2.Count > 3)
+					{
+						editor.WriteMessage($"\n  ... 杩樻湁 {list2.Count - 3} 涓敊璇湭鏄剧ず");
+					}
+				}
+				if (list.Count == 0)
+				{
+					editor.WriteMessage("\n鎵€閫夋澘浠跺潎鏈寘鍚湁鏁堟暟鎹紝鏃犳硶瀵煎嚭銆?");
+					return;
+				}
+				string text2 = "";
+				if (!string.IsNullOrEmpty(text))
+				{
+					string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+					int num3 = 1;
+					do
+					{
+						text2 = Path.Combine(folderPath, $"{text}_{num3:D3}.csv");
+						num3++;
+					}
+					while (File.Exists(text2));
+				}
+				else
+				{
+					editor.WriteMessage("\n鏃犳硶纭畾璁㈠崟鍙凤紝灏嗕娇鐢ㄩ粯璁ゆ枃浠跺悕銆?");
+					text2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "ExportedData_001.csv");
+				}
+				try
+				{
+					StringBuilder stringBuilder = new StringBuilder();
+					stringBuilder.AppendLine("\"订单号\",\"柜号\",\"房间\",\"板件名称\",\"材质\",\"自动长度(mm)\",\"自动宽度(mm)\",\"自动厚度(mm)\",\"裁切长度(mm)\",\"裁切宽度(mm)\",\"裁切厚度(mm)\",\"备注\",\"封边\",\"油漆\",\"纹理方向\",\"实体ID\"");
+					foreach (PanelInfo item in list)
+					{
+						StringBuilder stringBuilder2 = stringBuilder;
+						StringBuilder.AppendInterpolatedStringHandler handler = new StringBuilder.AppendInterpolatedStringHandler(35, 16, stringBuilder2);
+						handler.AppendLiteral("\"");
+						handler.AppendFormatted(item.OrderId ?? "");
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.CabinetId ?? "");
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.RoomId ?? "");
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.PanelName ?? "");
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.Material ?? "");
+						handler.AppendLiteral("\",");
+						handler.AppendFormatted(item.Length, "F2");
+						handler.AppendLiteral(",");
+						handler.AppendFormatted(item.Width, "F2");
+						handler.AppendLiteral(",");
+						handler.AppendFormatted(item.Height, "F2");
+						handler.AppendLiteral(",");
+						handler.AppendFormatted(item.ExtraLength, "F2");
+						handler.AppendLiteral(",");
+						handler.AppendFormatted(item.ExtraWidth, "F2");
+						handler.AppendLiteral(",");
+						handler.AppendFormatted(item.ExtraHeight, "F2");
+						handler.AppendLiteral(",\"");
+						handler.AppendFormatted(item.Remarks ?? "");
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.EdgeBanding ?? "");
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.Paint ?? "");
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.TextureDirection.ToString());
+						handler.AppendLiteral("\",\"");
+						handler.AppendFormatted(item.EntityId ?? "");
+						handler.AppendLiteral("\"");
+						stringBuilder2.AppendLine(ref handler);
+					}
+					File.WriteAllText(text2, stringBuilder.ToString(), Encoding.UTF8);
+					editor.WriteMessage("\n鏁版嵁宸叉垚鍔熷鍑哄埌鏂囦欢: " + text2);
+					editor.WriteMessage($"\n鍏卞鍑?{list.Count} 涓澘浠剁殑淇℃伅銆?");
+				}
+				catch (Exception ex3)
+				{
+					editor.WriteMessage("\n瀵煎嚭CSV鏂囦欢鏃跺嚭閿? " + ex3.Message);
+				}
+			}
+			finally
+			{
+				((IDisposable)val3)?.Dispose();
+			}
+		}
+		catch (Exception ex4)
+		{
+			Document mdiActiveDocument2 = Application.DocumentManager.MdiActiveDocument;
+			Editor val6 = ((mdiActiveDocument2 != null) ? mdiActiveDocument2.Editor : null);
+			if (val6 != null)
+			{
+				val6.WriteMessage("\n鎵ц瀵煎嚭鍛戒护鏃跺嚭閿? " + ex4.Message);
+			}
+			System.Windows.MessageBox.Show("鎵ц瀵煎嚭鏃跺嚭閿? " + ex4.Message, "閿欒", MessageBoxButton.OK, MessageBoxImage.Hand);
+		}
+	}
+
+	[CommandMethod("TESTMAT")]
+	public void TestMaterialDisplay()
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		Editor editor = mdiActiveDocument.Editor;
+		try
+		{
+			mdiActiveDocument.SendStringToExecute("MATERIALS ", true, false, false);
+			editor.WriteMessage("\n宸叉墦寮€绯荤粺鏉愯川搴擄紝璇锋墜鍔ㄩ€夋嫨骞跺簲鐢ㄦ潗璐ㄣ€?");
+			editor.WriteMessage("\n鎻愮ず锛氬彲浠ヤ娇鐢∕ATCHPROP鍛戒护鎵归噺鏇挎崲鏉愯川銆?");
+		}
+		catch (Exception ex)
+		{
+			editor.WriteMessage("\n鎵撳紑鏉愯川搴撴椂鍑洪敊: " + ex.Message);
+		}
+	}
+
+	[CommandMethod("TESTMATLIB")]
+	public void TestMaterialLibrary()
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		Database database = mdiActiveDocument.Database;
+		Editor editor = mdiActiveDocument.Editor;
+		try
+		{
+			editor.WriteMessage("\n=== 娴嬭瘯绯荤粺鏉愯川搴撳姛鑳?===");
+			Transaction val = database.TransactionManager.StartTransaction();
+			try
+			{
+				DBDictionary val2 = (DBDictionary)val.GetObject(database.MaterialDictionaryId, (OpenMode)0);
+				editor.WriteMessage($"\n褰撳墠鏉愯川瀛楀吀涓湁 {val2.Count} 涓潗璐?");
+				DbDictionaryEnumerator enumerator = val2.GetEnumerator();
+				try
+				{
+					while (enumerator.MoveNext())
+					{
+						DictionaryEntry dictionaryEntry = (DictionaryEntry)enumerator.Current;
+						editor.WriteMessage($"\n  - {dictionaryEntry.Key}");
+					}
+				}
+				finally
+				{
+					((IDisposable)enumerator)?.Dispose();
+				}
+				string[] array = new string[4] { "橡木", "樱桃木", "松木", "胡桃木" };
+				string[] array2 = array;
+				foreach (string text in array2)
+				{
+					editor.WriteMessage("\n\n娴嬭瘯鏉愯川: " + text);
+					ObjectId val3 = ObjectId.Null;
+					if (val3 != ObjectId.Null)
+					{
+						editor.WriteMessage("  鉁?鎴愬姛鑾峰彇/鍒涘缓鏉愯川: " + text);
+					}
+					else
+					{
+						editor.WriteMessage("  鉁?鏃犳硶鑾峰彇/鍒涘缓鏉愯川: " + text);
+					}
+				}
+				val.Commit();
+			}
+			finally
+			{
+				((IDisposable)val)?.Dispose();
+			}
+			editor.WriteMessage("\n\n=== 鏉愯川搴撴祴璇曞畬鎴?===");
+			editor.WriteMessage("\n鎻愮ず锛氫娇鐢?TESTMAT 鍛戒护灏嗘潗璐ㄥ簲鐢ㄥ埌閫変腑鐨勫疄浣撲笂銆?");
+		}
+		catch (Exception ex)
+		{
+			editor.WriteMessage("\n娴嬭瘯鏉愯川搴撴椂鍑洪敊: " + ex.Message);
+		}
+	}
+
+	[CommandMethod("ShowAllTextureDirections")]
+	public void ShowAllTextureDirections()
+	{
+		try
+		{
+			Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+			if (mdiActiveDocument == null)
+			{
+				System.Windows.MessageBox.Show("没有活动的 AutoCAD 文档。", "错误", MessageBoxButton.OK, MessageBoxImage.Hand);
+				return;
+			}
+			Database database = mdiActiveDocument.Database;
+			Editor editor = mdiActiveDocument.Editor;
+			RestorePreviousHighlight(database);
+			Transaction val = database.TransactionManager.StartTransaction();
+			try
+			{
+				BlockTable val2 = (BlockTable)val.GetObject(database.BlockTableId, (OpenMode)0);
+				BlockTableRecord val3 = (BlockTableRecord)val.GetObject(((SymbolTable)val2)[BlockTableRecord.ModelSpace], (OpenMode)0);
+				int num = 0;
+				BlockTableRecordEnumerator enumerator = val3.GetEnumerator();
+				try
+				{
+					while (enumerator.MoveNext())
+					{
+						ObjectId current = enumerator.Current;
+						DBObject obj = val.GetObject(current, (OpenMode)0);
+						Solid3d val4 = (Solid3d)(object)((obj is Solid3d) ? obj : null);
+						if (val4 != null)
+						{
+							PanelInfo panelInfo = GetPanelInfo((DBObject)val4);
+							if (panelInfo != null && panelInfo.TextureDirection != TextureDirection.AlongLength)
+							{
+								editor.WriteMessage($"\n瀹炰綋 {current}: 绾圭悊鏂瑰悜 = {panelInfo.TextureDirection}");
+								num++;
+							}
+						}
+					}
+				}
+				finally
+				{
+					((IDisposable)enumerator)?.Dispose();
+				}
+				val.Commit();
+				editor.WriteMessage($"\n鍏辨壘鍒?{num} 涓缃簡绾圭悊鏂瑰悜鐨勬澘浠躲€?");
+			}
+			finally
+			{
+				((IDisposable)val)?.Dispose();
+			}
+		}
+		catch (Exception ex)
+		{
+			Document mdiActiveDocument2 = Application.DocumentManager.MdiActiveDocument;
+			Editor val5 = ((mdiActiveDocument2 != null) ? mdiActiveDocument2.Editor : null);
+			if (val5 != null)
+			{
+				val5.WriteMessage("\n鏄剧ず绾圭悊鏂瑰悜鏃跺嚭閿? " + ex.Message);
+			}
+		}
+	}
+
+	[CommandMethod("CKBJ")]
+	public void CKBJ()
+	{
+		try
+		{
+			Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+			if (mdiActiveDocument == null)
+			{
+				System.Windows.MessageBox.Show("没有活动的 AutoCAD 文档。", "错误", MessageBoxButton.OK, MessageBoxImage.Hand);
+				return;
+			}
+			Database database = mdiActiveDocument.Database;
+			Editor editor = mdiActiveDocument.Editor;
+			RestorePreviousHighlight(database);
+			PromptSelectionOptions val = new PromptSelectionOptions
+			{
+				MessageForAdding = "\n璇烽€夋嫨瑕佹煡鐪嬬殑3D瀹炰綋鏉夸欢: ",
+				MessageForRemoval = "\n绉婚櫎閫夋嫨: "
+			};
+			SelectionFilter val2 = new SelectionFilter((TypedValue[])(object)new TypedValue[1]
+			{
+				new TypedValue(0, (object)"3DSOLID")
+			});
+			PromptSelectionResult selection = editor.GetSelection(val, val2);
+			if ((int)selection.Status != 5100)
+			{
+				if ((int)selection.Status == -5002)
+				{
+					editor.WriteMessage("\n鎿嶄綔宸插彇娑堛€?");
+				}
+				return;
+			}
+			ObjectId[] objectIds = selection.Value.GetObjectIds();
+			if (objectIds.Length == 0)
+			{
+				editor.WriteMessage("\n娌℃湁閫夋嫨浠讳綍鏉夸欢銆?");
+				return;
+			}
+			editor.WriteMessage($"\n宸查€夋嫨 {objectIds.Length} 涓?D瀹炰綋杩涜鏌ョ湅銆?");
+			try
+			{
+				PanelInfoListWindow panelInfoListWindow = new PanelInfoListWindow(new List<ObjectId>(objectIds));
+				WindowInteropHelper windowInteropHelper = new WindowInteropHelper(panelInfoListWindow)
+				{
+					Owner = Application.MainWindow.Handle
+				};
+				panelInfoListWindow.ShowDialog();
+			}
+			catch (Exception ex)
+			{
+				editor.WriteMessage("\n鏄剧ず鏉夸欢淇℃伅鍒楄〃绐楀彛鏃跺嚭閿? " + ex.Message);
+			}
+		}
+		catch (Exception ex2)
+		{
+			Document mdiActiveDocument2 = Application.DocumentManager.MdiActiveDocument;
+			Editor val3 = ((mdiActiveDocument2 != null) ? mdiActiveDocument2.Editor : null);
+			if (val3 != null)
+			{
+				val3.WriteMessage("\n鎵цCKBJ鍛戒护鏃跺嚭閿? " + ex2.Message);
+			}
+			System.Windows.MessageBox.Show("鎵цCKBJ鍛戒护鏃跺嚭閿? " + ex2.Message, "閿欒", MessageBoxButton.OK, MessageBoxImage.Hand);
+		}
+	}
+}
+

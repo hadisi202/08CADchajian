@@ -1,0 +1,224 @@
+<Window x:Class="FurniturePlugin.BackPanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="背板参数化建模" Height="700" Width="900"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        WindowStyle="SingleBorderWindow">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题 -->
+        <TextBlock Grid.Row="0" Text="背板参数化建模" FontSize="18" FontWeight="Bold" 
+                   HorizontalAlignment="Center" Margin="0,0,0,15"/>
+        
+        <!-- 主要内容区域 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="3*"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- 左侧参数设置区域 -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,10,0">
+                <StackPanel>
+                    <!-- 基础参数 -->
+                    <GroupBox Header="基础参数" Margin="0,0,0,10">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="柜体宽度:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="CabinetWidthTextBox" Text="800" Margin="0,0,5,5"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="柜体高度:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="CabinetHeightTextBox" Text="2400" Margin="0,0,5,5"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="背板厚度:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="BackPanelThicknessTextBox" Text="5" Margin="0,0,5,5"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="侧板厚度:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="3" Grid.Column="1" x:Name="SidePanelThicknessTextBox" Text="18" Margin="0,0,5,5"/>
+                            <TextBlock Grid.Row="3" Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="顶底板厚度:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="4" Grid.Column="1" x:Name="TopBottomThicknessTextBox" Text="18" Margin="0,0,5,5"/>
+                            <TextBlock Grid.Row="4" Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="背板深度:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Grid.Row="5" Grid.Column="1" x:Name="BackPanelDepthTextBox" Text="600" Margin="0,0,5,0"/>
+                            <TextBlock Grid.Row="5" Grid.Column="2" Text="mm" VerticalAlignment="Center"/>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <!-- 背板类型 -->
+                    <GroupBox Header="背板类型" Margin="0,0,0,10">
+                        <StackPanel Margin="10">
+                            <RadioButton x:Name="FullBackPanelRadio" Content="整块背板" IsChecked="True" Margin="0,0,0,5"/>
+                            <RadioButton x:Name="SplitBackPanelRadio" Content="分块背板" Margin="0,0,0,5"/>
+                            <RadioButton x:Name="NoBackPanelRadio" Content="无背板" Margin="0,0,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <!-- 安装方式 -->
+                    <GroupBox Header="安装方式" Margin="0,0,0,10">
+                        <StackPanel Margin="10">
+                            <RadioButton x:Name="EmbeddedRadio" Content="内嵌式" IsChecked="True" Margin="0,0,0,5"/>
+                            <RadioButton x:Name="ExternalRadio" Content="外盖式" Margin="0,0,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <!-- 背板配置 -->
+                    <GroupBox Header="背板配置" Margin="0,0,0,10">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="背板材质:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="BackPanelMaterialComboBox" Margin="0,0,0,5">
+                                <ComboBoxItem Content="密度板" IsSelected="True"/>
+                                <ComboBoxItem Content="胶合板"/>
+                                <ComboBoxItem Content="OSB板"/>
+                                <ComboBoxItem Content="刨花板"/>
+                            </ComboBox>
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="分块数量:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="SplitCountTextBox" Text="2" Margin="0,0,0,5" IsEnabled="False"/>
+                            
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="分块方向:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <ComboBox Grid.Row="2" Grid.Column="1" x:Name="SplitDirectionComboBox" Margin="0,0,0,5" IsEnabled="False">
+                                <ComboBoxItem Content="水平分块" IsSelected="True"/>
+                                <ComboBoxItem Content="垂直分块"/>
+                            </ComboBox>
+                            
+                            <CheckBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" x:Name="IncludeSlotCheckBox" 
+                                      Content="包含背板槽" IsChecked="True" Margin="0,5,0,0"/>
+                        </Grid>
+                    </GroupBox>
+                    
+                    <!-- 高级选项 -->
+                    <GroupBox Header="高级选项" Margin="0,0,0,10">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="背板槽深度:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="SlotDepthTextBox" Text="10" Margin="0,0,5,5"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="预留间隙:" VerticalAlignment="Center" Margin="0,0,10,5"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="ClearanceTextBox" Text="2" Margin="0,0,5,5"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="mm" VerticalAlignment="Center" Margin="0,0,0,5"/>
+                            
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="分块间隙:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="SplitGapTextBox" Text="5" Margin="0,0,5,0" IsEnabled="False"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="mm" VerticalAlignment="Center"/>
+                        </Grid>
+                    </GroupBox>
+                </StackPanel>
+            </ScrollViewer>
+            
+            <!-- 右侧预览和结果区域 -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- CAD识别功能区域 -->
+                <GroupBox Grid.Row="0" Header="CAD识别功能" Margin="0,0,0,10">
+                    <StackPanel Margin="10">
+                        <TextBlock Text="点击识别按钮，然后在CAD中选择参考对象来自动设置参数" 
+                                   TextWrapping="Wrap" Margin="0,0,0,15" Foreground="#FF666666"/>
+                        <Button Name="IdentifyButton" Content="🎯 识别CAD对象" Width="150" Height="40" 
+                                Background="#FF9C27B0" Foreground="White" BorderThickness="0" 
+                                FontSize="14" FontWeight="Bold" Click="IdentifyButton_Click" 
+                                HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </GroupBox>
+                
+                <!-- 计算结果显示 -->
+                <GroupBox Grid.Row="1" Header="计算结果">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="背板尺寸:" FontWeight="Bold" Margin="0,0,10,5"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="BackPanelSizeTextBlock" Text="800×2400×5" Margin="0,0,0,5"/>
+                        
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="背板数量:" FontWeight="Bold" Margin="0,0,10,5"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="BackPanelCountTextBlock" Text="1" Margin="0,0,0,5"/>
+                        
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="单块尺寸:" FontWeight="Bold" Margin="0,0,10,5"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SinglePanelSizeTextBlock" Text="800×2400×5" Margin="0,0,0,5"/>
+                        
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="总面积:" FontWeight="Bold" Margin="0,0,10,5"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="TotalAreaTextBlock" Text="1.92 m²" Margin="0,0,0,5"/>
+                        
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="安装方式:" FontWeight="Bold" Margin="0,0,10,5"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="InstallationTypeTextBlock" Text="内嵌式" Margin="0,0,0,5"/>
+                        
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="背板槽:" FontWeight="Bold" Margin="0,0,10,0"/>
+                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="SlotInfoTextBlock" Text="深度10mm"/>
+                    </Grid>
+                </GroupBox>
+            </Grid>
+        </Grid>
+        
+        <!-- 底部按钮 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button x:Name="CalculateButton" Content="重新计算" Width="80" Height="30" 
+                    Margin="0,0,10,0" Click="CalculateButton_Click"/>
+            <Button x:Name="IdentifyQuickButton" Content="🎯 快速识别" Width="80" Height="30" 
+                    Margin="0,0,10,0" Click="IdentifyButton_Click"/>
+            <Button x:Name="CreateButton" Content="创建背板" Width="80" Height="30" 
+                    Margin="0,0,10,0" Click="CreateButton_Click" IsDefault="True"/>
+            <Button x:Name="CancelButton" Content="取消" Width="80" Height="30" 
+                    Click="CancelButton_Click" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

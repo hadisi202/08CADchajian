@@ -1,0 +1,83 @@
+<Window x:Class="FurniturePlugin.CommandPalette"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="家具插件命令面板 (Furniture Plugin Commands)" Height="600" Width="500"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResize">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+    </Window.Resources>
+    
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10">
+            <TextBlock Text="常用命令快捷键" FontSize="18" FontWeight="Bold" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+            
+            <GroupBox Header="板件管理 (Panel Management)">
+                <UniformGrid Columns="2">
+                    <Button Content="设置板件信息 (SETI)" Click="Button_Click" Tag="SETI"/>
+                    <Button Content="批量修改信息 (PLXG)" Click="Button_Click" Tag="PLXG"/>
+                    <Button Content="查看信息列表 (CKBJ)" Click="Button_Click" Tag="CKBJ"/>
+                    <Button Content="导出CSV (ExportPanelInfoToCsv)" Click="Button_Click" Tag="ExportPanelInfoToCsv" FontSize="12"/>
+                </UniformGrid>
+            </GroupBox>
+
+            <GroupBox Header="板件创建 (Creation)">
+                <UniformGrid Columns="2">
+                    <Button Content="快速创建板件 (CJBJ)" Click="Button_Click" Tag="CJBJ"/>
+                    <Button Content="智能外框架 (KJ)" Click="Button_Click" Tag="KJ"/>
+                    <Button Content="左右侧板 (ZYCEBAN)" Click="Button_Click" Tag="ZYCEBAN"/>
+                    <Button Content="顶底板 (DINDIBAN)" Click="Button_Click" Tag="DINDIBAN"/>
+                    <Button Content="层板 (CENGBAN)" Click="Button_Click" Tag="CENGBAN"/>
+                    <Button Content="背板 (BEIBAN)" Click="Button_Click" Tag="BEIBAN"/>
+                </UniformGrid>
+            </GroupBox>
+
+            <GroupBox Header="工具 (Tools)">
+                <UniformGrid Columns="2">
+                    <Button Content="查找板件 (CZBJ)" Click="Button_Click" Tag="CZBJ"/>
+                    <Button Content="OBB包围盒 (OBB)" Click="Button_Click" Tag="OBB"/>
+                    <Button Content="轴向拉伸 (AXS)" Click="Button_Click" Tag="AXS"/>
+                    <Button Content="摆正板件 (BZBJ)" Click="Button_Click" Tag="BZBJ"/>
+                    <Button Content="五视图投影 (NMST)" Click="Button_Click" Tag="NMST"/>
+                    <Button Content="最小外框矩形 (ZXWK)" Click="Button_Click" Tag="ZXWK"/>
+                    <Button Content="排版 (PAIBAN)" Click="Button_Click" Tag="PAIBAN"/>
+                    <Button Content="差集运算 (SUU)" Click="Button_Click" Tag="SUU"/>
+                    <Button Content="内空识别 (BOO)" Click="Button_Click" Tag="BOO"/>
+                </UniformGrid>
+            </GroupBox>
+
+            <GroupBox Header="材质与显示 (Materials &amp; Display)">
+                <UniformGrid Columns="2">
+                    <Button Content="测试材质 (TESTMAT)" Click="Button_Click" Tag="TESTMAT"/>
+                    <Button Content="材质库 (TESTMATLIB)" Click="Button_Click" Tag="TESTMATLIB"/>
+                    <Button Content="纹理方向 (ShowAllTextureDirections)" Click="Button_Click" Tag="ShowAllTextureDirections" FontSize="11"/>
+                </UniformGrid>
+            </GroupBox>
+
+            <Expander Header="测试命令 (Test Commands)" Margin="5">
+                <UniformGrid Columns="2">
+                    <Button Content="运行所有测试 (TESTALL)" Click="Button_Click" Tag="TESTALL"/>
+                    <Button Content="测试数据 (TESTDATA)" Click="Button_Click" Tag="TESTDATA"/>
+                    <Button Content="测试创建 (TESTCREATE)" Click="Button_Click" Tag="TESTCREATE"/>
+                    <Button Content="测试命令 (TESTCMD)" Click="Button_Click" Tag="TESTCMD"/>
+                    <Button Content="性能测试 (TESTPERF)" Click="Button_Click" Tag="TESTPERF"/>
+                    <Button Content="清理数据 (TESTCLEAN)" Click="Button_Click" Tag="TESTCLEAN"/>
+                    <Button Content="测试帮助 (TESTHELP)" Click="Button_Click" Tag="TESTHELP"/>
+                    <Button Content="测试外框架 (TESTKJ)" Click="Button_Click" Tag="TESTKJ"/>
+                </UniformGrid>
+            </Expander>
+
+            <Button Content="关闭 (Close)" Click="Close_Click" HorizontalAlignment="Center" Width="100" Margin="0,20,0,0"/>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

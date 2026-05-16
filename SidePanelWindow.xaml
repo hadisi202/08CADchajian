@@ -1,0 +1,145 @@
+<Window x:Class="FurniturePlugin.SidePanelWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="左右侧板参数化建模" Height="600" Width="800"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        WindowStyle="SingleBorderWindow">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题栏 -->
+        <Border Grid.Row="0" Background="#FF2E3440" Padding="15,10">
+            <TextBlock Text="左右侧板参数化建模" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+        </Border>
+        
+        <!-- 主要内容区域 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20">
+            <StackPanel>
+                <!-- 基础参数组 -->
+                <GroupBox Header="基础参数" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <Label Grid.Row="0" Grid.Column="0" Content="柜体深度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Name="CabinetDepthTextBox" Text="600" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="1" Grid.Column="0" Content="柜体高度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Name="CabinetHeightTextBox" Text="2400" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="2" Grid.Column="0" Content="侧板厚度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Name="SidePanelThicknessTextBox" Text="18" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="3" Grid.Column="0" Content="顶底板厚度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Name="TopBottomThicknessTextBox" Text="18" Margin="5" Padding="5"/>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 盖法选择组 -->
+                <GroupBox Header="盖法选择" Margin="0,0,0,15" Padding="15">
+                    <StackPanel>
+                        <RadioButton Name="SideCoverTopBottomRadio" Content="左右侧板盖顶底板" IsChecked="True" Margin="0,5"/>
+                        <RadioButton Name="TopBottomCoverSideRadio" Content="顶底板盖左右侧板" Margin="0,5"/>
+                    </StackPanel>
+                </GroupBox>
+                
+                <!-- 侧板配置组 -->
+                <GroupBox Header="侧板配置" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <CheckBox Grid.Row="0" Grid.Column="0" Name="CreateLeftPanelCheckBox" Content="创建左侧板" IsChecked="True" Margin="0,5"/>
+                        <CheckBox Grid.Row="0" Grid.Column="1" Name="CreateRightPanelCheckBox" Content="创建右侧板" IsChecked="True" Margin="0,5"/>
+                        
+                        <Label Grid.Row="1" Grid.Column="0" Content="左侧板材质:" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" Name="LeftPanelMaterialComboBox" Margin="5" Padding="5">
+                            <ComboBoxItem Content="三聚氰胺板" IsSelected="True"/>
+                            <ComboBoxItem Content="实木板"/>
+                            <ComboBoxItem Content="密度板"/>
+                            <ComboBoxItem Content="颗粒板"/>
+                        </ComboBox>
+                        
+                        <Label Grid.Row="2" Grid.Column="0" Content="右侧板材质:" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="2" Grid.Column="1" Name="RightPanelMaterialComboBox" Margin="5" Padding="5">
+                            <ComboBoxItem Content="三聚氰胺板" IsSelected="True"/>
+                            <ComboBoxItem Content="实木板"/>
+                            <ComboBoxItem Content="密度板"/>
+                            <ComboBoxItem Content="颗粒板"/>
+                        </ComboBox>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 计算结果显示组 -->
+                <GroupBox Header="计算结果" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <Label Grid.Row="0" Grid.Column="0" Content="左侧板尺寸:" FontWeight="Bold"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Name="LeftPanelSizeTextBlock" Text="18×600×2400" VerticalAlignment="Center" Margin="10,0"/>
+                        
+                        <Label Grid.Row="0" Grid.Column="2" Content="右侧板尺寸:" FontWeight="Bold"/>
+                        <TextBlock Grid.Row="0" Grid.Column="3" Name="RightPanelSizeTextBlock" Text="18×600×2400" VerticalAlignment="Center" Margin="10,0"/>
+                        
+                        <Label Grid.Row="1" Grid.Column="0" Content="总面积:" FontWeight="Bold"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Name="TotalAreaTextBlock" Text="2.88 m²" VerticalAlignment="Center" Margin="10,0"/>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 识别功能组 -->
+                <GroupBox Header="CAD识别功能" Margin="0,0,0,15" Padding="15">
+                    <StackPanel>
+                        <TextBlock Text="点击识别按钮，然后在CAD中选择参考对象来自动设置参数" 
+                                   TextWrapping="Wrap" Margin="0,0,0,10" Foreground="#FF666666"/>
+                        <Button Name="IdentifyButton" Content="🎯 识别CAD对象" Width="150" Height="40" 
+                                Background="#FF9C27B0" Foreground="White" BorderThickness="0" 
+                                FontSize="14" FontWeight="Bold" Click="IdentifyButton_Click"/>
+                    </StackPanel>
+                </GroupBox>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- 底部按钮栏 -->
+        <Border Grid.Row="2" Background="#FFF0F0F0" Padding="15,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Name="CalculateButton" Content="重新计算" Width="100" Height="35" Margin="0,0,10,0" 
+                        Background="#FF4CAF50" Foreground="White" BorderThickness="0" Click="CalculateButton_Click"/>
+                <Button Name="IdentifyQuickButton" Content="🎯 快速识别" Width="100" Height="35" Margin="0,0,10,0" 
+                        Background="#FF9C27B0" Foreground="White" BorderThickness="0" Click="IdentifyButton_Click"/>
+                <Button Name="CreateButton" Content="创建板件" Width="100" Height="35" Margin="0,0,10,0" 
+                        Background="#FFFF9800" Foreground="White" BorderThickness="0" Click="CreateButton_Click"/>
+                <Button Name="CancelButton" Content="取消" Width="80" Height="35" 
+                        Background="#FF757575" Foreground="White" BorderThickness="0" Click="CancelButton_Click"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,726 @@
+#define DEBUG
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using Exception = System.Exception;
+using Polyline = Autodesk.AutoCAD.DatabaseServices.Polyline;
+using Autodesk.AutoCAD.DatabaseServices;
+using Autodesk.AutoCAD.Geometry;
+using Autodesk.AutoCAD.Runtime;
+
+namespace FurniturePlugin;
+
+public partial class MyPlugin
+{
+	private struct ArcGeometryInfo
+	{
+		public bool IsArcExtrusion { get; set; }
+
+		public double Radius { get; set; }
+
+		public double Angle { get; set; }
+
+		public double Width { get; set; }
+
+		public double Thickness { get; set; }
+
+		public double ArcLength { get; set; }
+
+		public int PrimaryAxis { get; set; }
+
+		public bool IsInnerArc { get; set; }
+	}
+
+	private sealed class EdgeAgg
+	{
+		public int FrontCount;
+
+		public int BackCount;
+
+		public int SideCount;
+
+		public int FaceSampleCount;
+
+		public readonly List<(Point2d A, Point2d B)> Segments = new List<(Point2d, Point2d)>();
+
+		private readonly HashSet<string> segSet = new HashSet<string>(StringComparer.Ordinal);
+
+		private readonly List<Vector3d> normals = new List<Vector3d>();
+
+		public void AddFace(bool front, bool back, bool side, Vector3d faceNormal)
+		{
+			FaceSampleCount++;
+			if (front)
+			{
+				FrontCount++;
+			}
+			else if (back)
+			{
+				BackCount++;
+			}
+			else if (side)
+			{
+				SideCount++;
+			}
+			if (!(faceNormal.Length > 1E-12))
+			{
+				return;
+			}
+			Vector3d val;
+			try
+			{
+				val = faceNormal.GetNormal();
+			}
+			catch
+			{
+				val = Vector3d.ZAxis;
+			}
+			bool flag = false;
+			for (int i = 0; i < normals.Count; i++)
+			{
+				Vector3d val2 = normals[i];
+				double num = Math.Abs(val2.DotProduct(val));
+				if (num > 0.9995)
+				{
+					flag = true;
+					break;
+				}
+			}
+			if (!flag && normals.Count < 8)
+			{
+				normals.Add(val);
+			}
+		}
+
+		public bool IsCrease()
+		{
+			if (normals.Count < 2)
+			{
+				return false;
+			}
+			for (int i = 0; i < normals.Count; i++)
+			{
+				for (int j = i + 1; j < normals.Count; j++)
+				{
+					Vector3d val = normals[i];
+					double num = Math.Abs(val.DotProduct(normals[j]));
+					if (num < 0.9995)
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		public void AddSegment(Point2d a, Point2d b)
+		{
+			string item = SegmentKey2D(a, b);
+			if (!segSet.Contains(item))
+			{
+				Segments.Add((a, b));
+				segSet.Add(item);
+			}
+		}
+	}
+
+	private sealed class HalfEdge2D
+	{
+		public int From;
+
+		public int To;
+
+		public int SegmentIndex;
+
+		public int Twin;
+
+		public int Next;
+
+		public double Angle;
+	}
+
+	private struct BoundingRect2D
+	{
+		public double Angle;
+
+		public double MinX;
+
+		public double MaxX;
+
+		public double MinY;
+
+		public double MaxY;
+	}
+
+	private class ProjectionPlane
+	{
+		public Vector3d Normal { get; set; }
+
+		public Vector3d UpVector { get; set; }
+	}
+
+	private class BoundingRectangle
+	{
+		public double Width { get; set; }
+
+		public double Height { get; set; }
+
+		public double Area { get; set; }
+
+		public double Angle { get; set; }
+	}
+
+	private struct Vector2d
+	{
+		public double X { get; set; }
+
+		public double Y { get; set; }
+
+		public Vector2d(double x, double y)
+		{
+			X = x;
+			Y = y;
+		}
+	}
+
+	private class FaceInfo
+	{
+		public Vector3d Normal { get; set; }
+
+		public double Area { get; set; }
+
+		public List<Point3d> Vertices { get; set; }
+	}
+
+	private class EigenDecompositionResult
+	{
+		public double[] EigenValues { get; set; }
+
+		public double[,] EigenVectors { get; set; }
+	}
+
+	private class AdvancedBoundaryDetector
+	{
+		private List<Curve> curves;
+
+		private Point3d centerPoint;
+
+		public AdvancedBoundaryDetector(List<Curve> curves, Point3d centerPoint)
+		{
+			this.curves = curves;
+			this.centerPoint = centerPoint;
+		}
+
+		public Entity CreateBoundary(bool createRegion)
+		{
+			try
+			{
+				Curve val = FindEnclosingCurve();
+				if ((DisposableWrapper)(object)val != (DisposableWrapper)null)
+				{
+					return CreateBoundaryFromCurve(val, createRegion);
+				}
+				List<Point3d> list = TraceHighPrecisionBoundary();
+				if (list.Count >= 3)
+				{
+					return CreateBoundaryFromPoints(list, createRegion);
+				}
+				return CreateBoundaryUsingContourTracing(createRegion);
+			}
+			catch (Exception ex)
+			{
+				Debug.WriteLine("楂樼骇杈圭晫妫€娴嬪け璐? " + ex.Message);
+				return null;
+			}
+		}
+
+		private Curve FindEnclosingCurve()
+		{
+			try
+			{
+				foreach (Curve curf in curves)
+				{
+					if (curf.Closed && IsPointInsideCurve(centerPoint, curf))
+					{
+						return curf;
+					}
+				}
+			}
+			catch
+			{
+			}
+			return null;
+		}
+
+		private bool IsPointInsideCurve(Point3d point, Curve curve)
+		{
+			try
+			{
+				Point3d val = default(Point3d);
+				val = new Point3d(point.X + 10000.0, point.Y, 0.0);
+				Line val2 = new Line(point, val);
+				Point3dCollection val3 = new Point3dCollection();
+				((Entity)val2).IntersectWith((Entity)(object)curve, (Intersect)0, val3, (IntPtr)IntPtr.Zero, (IntPtr)IntPtr.Zero);
+				((DisposableWrapper)val2).Dispose();
+				return val3.Count % 2 == 1;
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
+		private Entity CreateBoundaryFromCurve(Curve curve, bool createRegion)
+		{
+			try
+			{
+				object obj = ((RXObject)curve).Clone();
+				Curve val = (Curve)((obj is Curve) ? obj : null);
+				if (createRegion)
+				{
+					DBObjectCollection val2 = new DBObjectCollection();
+					val2.Add((DBObject)val);
+					DBObjectCollection val3 = Region.CreateFromCurves(val2);
+					if ((DisposableWrapper)(object)val3 != (DisposableWrapper)null && val3.Count > 0)
+					{
+						((DisposableWrapper)val).Dispose();
+						DBObject obj2 = val3[0];
+						return (Entity)(object)((obj2 is Region) ? obj2 : null);
+					}
+				}
+				return (Entity)(object)val;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private List<Point3d> TraceHighPrecisionBoundary()
+		{
+			List<Point3d> list = new List<Point3d>();
+			try
+			{
+				int num = 720;
+				List<(Point3d, double)> list2 = new List<(Point3d, double)>();
+				Vector3d direction = default(Vector3d);
+				for (int i = 0; i < num; i++)
+				{
+					double num2 = 360.0 / (double)num * (double)i;
+					double num3 = num2 * Math.PI / 180.0;
+					direction = new Vector3d(Math.Cos(num3), Math.Sin(num3), 0.0);
+					Point3d? val = FindNearestIntersection(centerPoint, direction);
+					if (val.HasValue)
+					{
+						list2.Add((val.Value, num2));
+					}
+				}
+				if (list2.Count < 3)
+				{
+					return list;
+				}
+				list2.Sort(((Point3d point, double angle) a, (Point3d point, double angle) b) => a.angle.CompareTo(b.angle));
+				list.Add(list2[0].Item1);
+				for (int num4 = 1; num4 < list2.Count; num4++)
+				{
+					Point3d val2 = list.Last();
+					Point3d item = list2[num4].Item1;
+					if (val2.DistanceTo(item) > 0.1)
+					{
+						list.Add(item);
+					}
+				}
+			}
+			catch
+			{
+			}
+			return list;
+		}
+
+		private Point3d? FindNearestIntersection(Point3d start, Vector3d direction)
+		{
+			Point3d? result = null;
+			double num = double.MaxValue;
+			try
+			{
+				Point3d val = start + direction * 20000.0;
+				Line val2 = new Line(start, val);
+				foreach (Curve curf in curves)
+				{
+					try
+					{
+						Point3dCollection val3 = new Point3dCollection();
+						((Entity)val2).IntersectWith((Entity)(object)curf, (Intersect)0, val3, (IntPtr)IntPtr.Zero, (IntPtr)IntPtr.Zero);
+						foreach (Point3d item in val3)
+						{
+							double num2 = start.DistanceTo(item);
+							if (num2 > 0.01 && num2 < num)
+							{
+								num = num2;
+								result = item;
+							}
+						}
+					}
+					catch
+					{
+					}
+				}
+				((DisposableWrapper)val2).Dispose();
+			}
+			catch
+			{
+			}
+			return result;
+		}
+
+		private Entity CreateBoundaryFromPoints(List<Point3d> points, bool createRegion)
+		{
+			try
+			{
+				if (points.Count < 3)
+				{
+					return null;
+				}
+				Polyline val = new Polyline();
+				for (int i = 0; i < points.Count; i++)
+				{
+					int num = i;
+					Point3d val2 = points[i];
+					double x = val2.X;
+					val2 = points[i];
+					val.AddVertexAt(num, new Point2d(x, val2.Y), 0.0, 0.0, 0.0);
+				}
+				val.Closed = true;
+				if (createRegion)
+				{
+					DBObjectCollection val3 = new DBObjectCollection();
+					val3.Add((DBObject)val);
+					DBObjectCollection val4 = Region.CreateFromCurves(val3);
+					if ((DisposableWrapper)(object)val4 != (DisposableWrapper)null && val4.Count > 0)
+					{
+						((DisposableWrapper)val).Dispose();
+						DBObject obj = val4[0];
+						return (Entity)(object)((obj is Region) ? obj : null);
+					}
+				}
+				return (Entity)(object)val;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private Entity CreateBoundaryUsingContourTracing(bool createRegion)
+		{
+			try
+			{
+				List<Point3d> list = TraceContour();
+				if (list.Count >= 3)
+				{
+					return CreateBoundaryFromPoints(list, createRegion);
+				}
+			}
+			catch
+			{
+			}
+			return null;
+		}
+
+		private List<Point3d> TraceContour()
+		{
+			List<Point3d> list = new List<Point3d>();
+			try
+			{
+				Point3d? val = FindNearestBoundaryPoint();
+				if (!val.HasValue)
+				{
+					return list;
+				}
+				list.Add(val.Value);
+				Point3d value = val.Value;
+				HashSet<string> hashSet = new HashSet<string>();
+				for (int i = 0; i < 1000; i++)
+				{
+					string item = $"{value.X:F3},{value.Y:F3}";
+					if (hashSet.Contains(item))
+					{
+						break;
+					}
+					hashSet.Add(item);
+					Point3d? val2 = FindNextContourPoint(value, list);
+					if (!val2.HasValue)
+					{
+						break;
+					}
+					if (list.Count > 3)
+					{
+						Point3d value2 = val2.Value;
+						if (value2.DistanceTo(val.Value) < 1.0)
+						{
+							break;
+						}
+					}
+					list.Add(val2.Value);
+					value = val2.Value;
+				}
+			}
+			catch
+			{
+			}
+			return list;
+		}
+
+		private Point3d? FindNearestBoundaryPoint()
+		{
+			try
+			{
+				Point3d? result = null;
+				double num = double.MaxValue;
+				foreach (Curve curf in curves)
+				{
+					try
+					{
+						Point3d closestPointTo = curf.GetClosestPointTo(centerPoint, false);
+						double num2 = centerPoint.DistanceTo(closestPointTo);
+						if (num2 < num)
+						{
+							num = num2;
+							result = closestPointTo;
+						}
+					}
+					catch
+					{
+					}
+				}
+				return result;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private Point3d? FindNextContourPoint(Point3d currentPoint, List<Point3d> existingPoints)
+		{
+			try
+			{
+				double num = 10.0;
+				Point3d? result = null;
+				double num2 = double.MinValue;
+				Vector3d val = default(Vector3d);
+				for (int i = 0; i < 360; i += 5)
+				{
+					double num3 = (double)i * Math.PI / 180.0;
+					val = new Vector3d(Math.Cos(num3), Math.Sin(num3), 0.0);
+					Point3d testPoint = currentPoint + val * num;
+					Point3d? val2 = FindNearestPointOnCurves(testPoint);
+					if (!val2.HasValue)
+					{
+						continue;
+					}
+					double num4 = testPoint.DistanceTo(val2.Value);
+					if (num4 < 1.0)
+					{
+						double num5 = CalculateContourScore(val2.Value, existingPoints);
+						if (num5 > num2)
+						{
+							num2 = num5;
+							result = val2.Value;
+						}
+					}
+				}
+				return result;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private Point3d? FindNearestPointOnCurves(Point3d testPoint)
+		{
+			try
+			{
+				Point3d? result = null;
+				double num = double.MaxValue;
+				foreach (Curve curf in curves)
+				{
+					try
+					{
+						Point3d closestPointTo = curf.GetClosestPointTo(testPoint, false);
+						double num2 = testPoint.DistanceTo(closestPointTo);
+						if (num2 < num)
+						{
+							num = num2;
+							result = closestPointTo;
+						}
+					}
+					catch
+					{
+					}
+				}
+				return result;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private double CalculateContourScore(Point3d candidate, List<Point3d> existingPoints)
+		{
+			try
+			{
+				double num = 0.0;
+				foreach (Point3d existingPoint in existingPoints)
+				{
+					double val = candidate.DistanceTo(existingPoint);
+					num += Math.Min(val, 100.0);
+				}
+				double num2 = candidate.DistanceTo(centerPoint);
+				return num + num2 * 0.1;
+			}
+			catch
+			{
+				return 0.0;
+			}
+		}
+	}
+
+	private class BoundaryDetector
+	{
+		private List<Curve> curves;
+
+		private Point3d centerPoint;
+
+		public BoundaryDetector(List<Curve> curves, Point3d centerPoint)
+		{
+			this.curves = curves;
+			this.centerPoint = centerPoint;
+		}
+
+		public Entity CreateBoundary(bool createRegion)
+		{
+			try
+			{
+				List<Point3d> list = TraceBoundary();
+				if (list.Count < 3)
+				{
+					return null;
+				}
+				Polyline val = new Polyline();
+				for (int i = 0; i < list.Count; i++)
+				{
+					int num = i;
+					Point3d val2 = list[i];
+					double x = val2.X;
+					val2 = list[i];
+					val.AddVertexAt(num, new Point2d(x, val2.Y), 0.0, 0.0, 0.0);
+				}
+				val.Closed = true;
+				if (createRegion)
+				{
+					DBObjectCollection val3 = new DBObjectCollection();
+					val3.Add((DBObject)val);
+					DBObjectCollection val4 = Region.CreateFromCurves(val3);
+					if ((DisposableWrapper)(object)val4 != (DisposableWrapper)null && val4.Count > 0)
+					{
+						((DisposableWrapper)val).Dispose();
+						DBObject obj = val4[0];
+						return (Entity)(object)((obj is Region) ? obj : null);
+					}
+				}
+				return (Entity)(object)val;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private List<Point3d> TraceBoundary()
+		{
+			List<Point3d> list = new List<Point3d>();
+			try
+			{
+				int num = 360;
+				Vector3d direction = default(Vector3d);
+				for (int i = 0; i < num; i++)
+				{
+					double num2 = (double)i * Math.PI / 180.0;
+					direction = new Vector3d(Math.Cos(num2), Math.Sin(num2), 0.0);
+					Point3d? val = FindIntersection(centerPoint, direction);
+					if (val.HasValue)
+					{
+						list.Add(val.Value);
+					}
+				}
+				return SimplifyBoundaryPoints(list);
+			}
+			catch
+			{
+				return list;
+			}
+		}
+
+		private Point3d? FindIntersection(Point3d start, Vector3d direction)
+		{
+			Point3d? result = null;
+			double num = double.MaxValue;
+			Point3d val = start + direction * 10000.0;
+			Line val2 = new Line(start, val);
+			foreach (Curve curf in curves)
+			{
+				try
+				{
+					Point3dCollection val3 = new Point3dCollection();
+					((Entity)val2).IntersectWith((Entity)(object)curf, (Intersect)0, val3, (IntPtr)IntPtr.Zero, (IntPtr)IntPtr.Zero);
+					foreach (Point3d item in val3)
+					{
+						double num2 = start.DistanceTo(item);
+						if (num2 > 0.001 && num2 < num)
+						{
+							num = num2;
+							result = item;
+						}
+					}
+				}
+				catch
+				{
+				}
+			}
+			((DisposableWrapper)val2).Dispose();
+			return result;
+		}
+
+		private List<Point3d> SimplifyBoundaryPoints(List<Point3d> points)
+		{
+			if (points.Count <= 3)
+			{
+				return points;
+			}
+			List<Point3d> list = new List<Point3d>();
+			list.Add(points[0]);
+			for (int i = 1; i < points.Count - 1; i++)
+			{
+				Point3d val = list.Last();
+				Point3d val2 = points[i];
+				Point3d val3 = points[i + 1];
+				if (val.DistanceTo(val2) > 0.1)
+				{
+					list.Add(val2);
+				}
+			}
+			if (points.Count > 0)
+			{
+				list.Add(points.Last());
+			}
+			return list;
+		}
+	}
+}
+
+
+

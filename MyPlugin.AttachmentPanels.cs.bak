@@ -1,0 +1,1130 @@
+#define DEBUG
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Application = Autodesk.AutoCAD.ApplicationServices.Core.Application;
+using Exception = System.Exception;
+using Autodesk.AutoCAD.ApplicationServices;
+using Autodesk.AutoCAD.DatabaseServices;
+using Autodesk.AutoCAD.EditorInput;
+using Autodesk.AutoCAD.Geometry;
+using Autodesk.AutoCAD.GraphicsInterface;
+using Autodesk.AutoCAD.Runtime;
+using Autodesk.AutoCAD.Colors;
+
+namespace FurniturePlugin;
+
+public partial class MyPlugin
+{
+	private void AddAttachmentPanelToFrame(Editor editor, Database db)
+	{
+		PromptPointOptions val = new PromptPointOptions("\n璇风偣鍑绘煖浣撳閮ㄩ檮灞炴澘浠跺弬鑰冨尯鍩? ");
+		PromptPointResult point = editor.GetPoint(val);
+		if ((int)((PromptResult)point).Status != 5100)
+		{
+			return;
+		}
+		Point3d value = point.Value;
+		CabinetFrame cabinetFrame = CabinetFrameService.FindFrameForAttachment(value);
+		if (cabinetFrame == null)
+		{
+			editor.WriteMessage("\n未找到可挂接的柜体外框。请在柜体附近点取，或先使用 WKK 创建外框。");
+			return;
+		}
+		AttachmentAddHint attachmentAddHint = cabinetFrame.GetAttachmentAddHint(value);
+		if (attachmentAddHint == null || attachmentAddHint.Zone == null)
+		{
+			editor.WriteMessage("\n无法识别附属板件挂接区域，请尽量点取柜体外侧、顶部、前后或踢脚区域。");
+			return;
+		}
+		editor.WriteMessage("\n妫€娴嬪埌: " + attachmentAddHint.Description);
+		editor.WriteMessage("\n  鎸傛帴鍖? " + attachmentAddHint.Zone.DisplayName);
+		editor.WriteMessage($"\n  鑷姩灏哄: {attachmentAddHint.PreviewLength:F0}脳{attachmentAddHint.PreviewWidth:F0}脳{attachmentAddHint.PreviewThickness:F0}");
+		string panelType = attachmentAddHint.PanelType;
+		PromptKeywordOptions val2 = CreateAttachmentConfirmOptions(attachmentAddHint.Zone.ZoneType);
+		PromptResult keywords = editor.GetKeywords(val2);
+		if ((int)keywords.Status == -5002)
+		{
+			return;
+		}
+		if ((int)keywords.Status == 5100)
+		{
+			switch (keywords.StringResult)
+			{
+			case "T":
+				panelType = "踢脚板";
+				break;
+			case "S":
+				panelType = "收口板";
+				break;
+			case "F":
+				panelType = "辅助板";
+				break;
+			}
+		}
+		AttachmentPanelOptions attachmentPanelOptions = PromptAttachmentOptions(editor, cabinetFrame, attachmentAddHint.Zone, panelType);
+		if (attachmentPanelOptions == null)
+		{
+			return;
+		}
+		string text = ResolveAttachmentZoneConflict(editor, cabinetFrame, attachmentAddHint.Zone);
+		if (text == "Cancel")
+		{
+			return;
+		}
+		if (text == "Block")
+		{
+			editor.WriteMessage("\n当前挂接区域已有附属板件，已按唯一性策略阻止重复创建。");
+			return;
+		}
+		List<PanelSlot> list = cabinetFrame.BuildAttachmentPreviewSlots(panelType, attachmentAddHint.Zone, attachmentPanelOptions);
+		if (list.Count == 0 || list.Any((PanelSlot slot) => !HasValidPanelGeometry(slot)))
+		{
+			editor.WriteMessage("\n附属板件参数导致尺寸无效，请调整缩进、离地或偏移量后重试。");
+			return;
+		}
+		try
+		{
+			ShowPanelPreview(cabinetFrame, list);
+			PanelSlot panelSlot = list[0];
+			editor.WriteMessage($"\n棰勮灏哄: {panelSlot.ComputedLength:F0}脳{panelSlot.ComputedWidth:F0}脳{panelSlot.ComputedThickness:F0}");
+			editor.WriteMessage("\n棰勮鍙傛暟: " + panelSlot.GetAttachmentParameterSummary());
+			if (list.Count > 1)
+			{
+				editor.WriteMessage($"\n预览结构: 已生成 L 型双条收口，共 {list.Count} 块板件。");
+			}
+			PromptKeywordOptions val3 = new PromptKeywordOptions("\n纭鍒涘缓褰撳墠闄勫睘鏉夸欢? [鏄?Y)/鍚?N)] <Y>: ");
+			((PromptOptions)val3).Keywords.Add("Y");
+			((PromptOptions)val3).Keywords.Add("N");
+			val3.AllowNone = true;
+			PromptResult keywords2 = editor.GetKeywords(val3);
+			if ((int)keywords2.Status == -5002 || ((int)keywords2.Status == 5100 && keywords2.StringResult == "N"))
+			{
+				editor.WriteMessage("\n已取消创建附属板件。");
+				return;
+			}
+			List<PanelSlot> slots = new List<PanelSlot>();
+			if (text == "Replace")
+			{
+				slots = cabinetFrame.RemoveAttachmentPanelsByZone(attachmentAddHint.Zone.Id);
+			}
+			List<PanelSlot> list2 = cabinetFrame.AddAttachmentPanels(panelType, attachmentAddHint.Zone, attachmentPanelOptions);
+			if (list2.Count == 0 || list2.Any((PanelSlot slot) => !HasValidPanelGeometry(slot)))
+			{
+				foreach (PanelSlot item in list2)
+				{
+					cabinetFrame.RemovePanel(item.PanelId);
+				}
+				editor.WriteMessage("\n附属板件尺寸无效，已停止创建。");
+				return;
+			}
+			foreach (PanelSlot item2 in list2)
+			{
+				CabinetFrameService.InheritInfoFromNeighbors(cabinetFrame, item2);
+			}
+			Transaction val4 = db.TransactionManager.StartTransaction();
+			try
+			{
+				BlockTable val5 = (BlockTable)val4.GetObject(db.BlockTableId, (OpenMode)0);
+				BlockTableRecord modelSpace = (BlockTableRecord)val4.GetObject(((SymbolTable)val5)[BlockTableRecord.ModelSpace], (OpenMode)1);
+				EraseSlotsFromDrawing(db, val4, slots);
+				foreach (PanelSlot item3 in list2)
+				{
+					CreatePanelSolidEntity(cabinetFrame, item3, modelSpace, val4);
+				}
+				val4.Commit();
+			}
+			finally
+			{
+				((IDisposable)val4)?.Dispose();
+			}
+			CabinetFrameService.SaveFrame(cabinetFrame);
+			PanelSlot panelSlot2 = list2[0];
+			Point3d origin = cabinetFrame.Origin;
+			double value2 = origin.X + panelSlot2.PosX;
+			origin = cabinetFrame.Origin;
+			double value3 = origin.Y + panelSlot2.PosY;
+			origin = cabinetFrame.Origin;
+			double value4 = origin.Z + panelSlot2.PosZ;
+			editor.WriteMessage($"\n宸叉坊鍔?{panelSlot2.PanelType}: {panelSlot2.ComputedLength:F0}脳{panelSlot2.ComputedWidth:F0}脳{panelSlot2.ComputedThickness:F0}");
+			editor.WriteMessage($"\n  瑁佸垏灏哄: {panelSlot2.CuttingLength:F1}脳{panelSlot2.CuttingWidth:F1}脳{panelSlot2.ComputedThickness:F0}");
+			editor.WriteMessage($"\n  浣嶇疆: ({value2:F0},{value3:F0},{value4:F0})");
+			editor.WriteMessage("\n  鍙傛暟: " + panelSlot2.GetAttachmentParameterSummary());
+			if (list2.Count > 1)
+			{
+				editor.WriteMessage($"\n  结构: 已按 L 型双条收口创建 {list2.Count} 块板件。");
+			}
+			editor.WriteMessage("\n  柜号/房间/材质/封边信息已自动补齐。");
+		}
+		finally
+		{
+			ClearAttachmentPreview();
+		}
+	}
+
+	private static PromptKeywordOptions CreateAttachmentConfirmOptions(AttachmentZoneType zoneType)
+	{
+		string text = ((zoneType == AttachmentZoneType.BaseFront) ? "\n纭娣诲姞闄勫睘鏉夸欢? [鏄?Y)/韪㈣剼鏉?T)/杈呭姪鏉?F)] <Y>: " : ((zoneType != AttachmentZoneType.LeftOuter && zoneType != AttachmentZoneType.RightOuter) ? "\n纭娣诲姞闄勫睘鏉夸欢? [鏄?Y)/杈呭姪鏉?F)/鏀跺彛鏉?S)] <Y>: " : "\n纭娣诲姞闄勫睘鏉夸欢? [鏄?Y)/鏀跺彛鏉?S)/杈呭姪鏉?F)] <Y>: "));
+		PromptKeywordOptions val = new PromptKeywordOptions(text);
+		((PromptOptions)val).Keywords.Add("Y");
+		if (zoneType == AttachmentZoneType.BaseFront)
+		{
+			((PromptOptions)val).Keywords.Add("T");
+			((PromptOptions)val).Keywords.Add("F");
+		}
+		else
+		{
+			((PromptOptions)val).Keywords.Add("S");
+			((PromptOptions)val).Keywords.Add("F");
+		}
+		val.AllowNone = true;
+		return val;
+	}
+
+	private static AttachmentPanelOptions PromptAttachmentOptions(Editor editor, CabinetFrame frame, AttachmentZone zone, string panelType)
+	{
+		AttachmentPanelOptions attachmentPanelOptions = new AttachmentPanelOptions();
+		if (panelType.Contains("踢脚板"))
+		{
+			if (!TryPromptDouble(editor, "\n杈撳叆韪㈣剼鏉块珮搴?<80>: ", frame.KickPanelHeight, allowNegative: false, out var value))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆宸︾缉杩?<0>: ", 0.0, allowNegative: false, out var value2))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍙崇缉杩?<0>: ", 0.0, allowNegative: false, out var value3))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆绂诲湴 <0>: ", 0.0, allowNegative: false, out var value4))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍓嶅悗鍋忕Щ(澶栧嚫涓烘, 鍐呴€€涓鸿礋) <0>: ", 0.0, allowNegative: true, out var value5))
+			{
+				return null;
+			}
+			attachmentPanelOptions.PanelHeight = value;
+			attachmentPanelOptions.LeftInset = value2;
+			attachmentPanelOptions.RightInset = value3;
+			attachmentPanelOptions.GroundClearance = value4;
+			attachmentPanelOptions.OuterOffset = value5;
+			return attachmentPanelOptions;
+		}
+		switch (zone.ZoneType)
+		{
+		case AttachmentZoneType.LeftOuter:
+		case AttachmentZoneType.RightOuter:
+		{
+			if (!TryPromptDouble(editor, "\n杈撳叆涓婄缉杩?<0>: ", 0.0, allowNegative: false, out var value18))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆涓嬬缉杩?绂诲湴 <0>: ", 0.0, allowNegative: false, out var value19))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍓嶇缉杩?<0>: ", 0.0, allowNegative: false, out var value20))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍚庣缉杩?<0>: ", 0.0, allowNegative: false, out var value21))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆澶栧亸绉?澶栧嚫涓烘, 鍐呴€€涓鸿礋) <0>: ", 0.0, allowNegative: true, out var value22))
+			{
+				return null;
+			}
+			attachmentPanelOptions.TopInset = value18;
+			attachmentPanelOptions.BottomInset = value19;
+			attachmentPanelOptions.FrontInset = value20;
+			attachmentPanelOptions.BackInset = value21;
+			attachmentPanelOptions.OuterOffset = value22;
+			if (panelType.Contains("收口板"))
+			{
+				if (!TryPromptDouble(editor, "\n杈撳叆L鍨嬪洖鍙ｅ搴?<60>: ", 60.0, allowNegative: false, out var value23))
+				{
+					return null;
+				}
+				attachmentPanelOptions.ReturnWidth = value23;
+			}
+			break;
+		}
+		case AttachmentZoneType.TopOuter:
+		{
+			if (!TryPromptDouble(editor, "\n杈撳叆宸︾缉杩?<0>: ", 0.0, allowNegative: false, out var value12))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍙崇缉杩?<0>: ", 0.0, allowNegative: false, out var value13))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍓嶇缉杩?<0>: ", 0.0, allowNegative: false, out var value14))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍚庣缉杩?<0>: ", 0.0, allowNegative: false, out var value15))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆涓婂亸绉?涓婃姮涓烘, 涓嬪帇涓鸿礋) <0>: ", 0.0, allowNegative: true, out var value16))
+			{
+				return null;
+			}
+			attachmentPanelOptions.LeftInset = value12;
+			attachmentPanelOptions.RightInset = value13;
+			attachmentPanelOptions.FrontInset = value14;
+			attachmentPanelOptions.BackInset = value15;
+			attachmentPanelOptions.OuterOffset = value16;
+			if (panelType.Contains("收口板"))
+			{
+				if (!TryPromptDouble(editor, "\n杈撳叆L鍨嬪洖鍙ｅ搴?<60>: ", 60.0, allowNegative: false, out var value17))
+				{
+					return null;
+				}
+				attachmentPanelOptions.ReturnWidth = value17;
+			}
+			break;
+		}
+		default:
+		{
+			if (!TryPromptDouble(editor, "\n杈撳叆宸︾缉杩?<0>: ", 0.0, allowNegative: false, out var value6))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆鍙崇缉杩?<0>: ", 0.0, allowNegative: false, out var value7))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆涓婄缉杩?<0>: ", 0.0, allowNegative: false, out var value8))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆涓嬬缉杩?绂诲湴 <0>: ", 0.0, allowNegative: false, out var value9))
+			{
+				return null;
+			}
+			if (!TryPromptDouble(editor, "\n杈撳叆澶栧亸绉?澶栧嚫涓烘, 鍐呴€€涓鸿礋) <0>: ", 0.0, allowNegative: true, out var value10))
+			{
+				return null;
+			}
+			attachmentPanelOptions.LeftInset = value6;
+			attachmentPanelOptions.RightInset = value7;
+			attachmentPanelOptions.TopInset = value8;
+			attachmentPanelOptions.BottomInset = value9;
+			attachmentPanelOptions.OuterOffset = value10;
+			if (panelType.Contains("收口板") && zone.ZoneType == AttachmentZoneType.BaseFront)
+			{
+				if (!TryPromptDouble(editor, "\n杈撳叆L鍨嬪洖鍙ｅ搴?<60>: ", 60.0, allowNegative: false, out var value11))
+				{
+					return null;
+				}
+				attachmentPanelOptions.ReturnWidth = value11;
+			}
+			break;
+		}
+		}
+		return attachmentPanelOptions;
+	}
+
+	private static bool TryPromptDouble(Editor editor, string message, double defaultValue, bool allowNegative, out double value)
+	{
+		PromptDoubleOptions val = new PromptDoubleOptions(message)
+		{
+			AllowNone = true,
+			DefaultValue = defaultValue,
+			UseDefaultValue = true,
+			AllowNegative = allowNegative,
+			AllowZero = true
+		};
+		PromptDoubleResult val2 = editor.GetDouble(val);
+		if ((int)((PromptResult)val2).Status == 5100)
+		{
+			value = val2.Value;
+			return true;
+		}
+		if ((int)((PromptResult)val2).Status == 5000)
+		{
+			value = defaultValue;
+			return true;
+		}
+		value = defaultValue;
+		return false;
+	}
+
+	private static string ResolveAttachmentZoneConflict(Editor editor, CabinetFrame frame, AttachmentZone zone)
+	{
+		if (frame == null || zone == null)
+		{
+			return "Replace";
+		}
+		if (!frame.Panels.Any((PanelSlot p) => p.PlacementKind == PanelPlacementKind.AttachmentZone && string.Equals(p.HostZoneId, zone.Id, StringComparison.OrdinalIgnoreCase)))
+		{
+			return "Replace";
+		}
+		PromptKeywordOptions val = new PromptKeywordOptions("\n璇ユ寕鎺ュ尯宸叉湁闄勫睘鏉夸欢 [鏇挎崲(R)/闃绘(B)/鍙栨秷(C)] <R>: ");
+		((PromptOptions)val).Keywords.Add("R");
+		((PromptOptions)val).Keywords.Add("B");
+		((PromptOptions)val).Keywords.Add("C");
+		val.AllowNone = true;
+		PromptResult keywords = editor.GetKeywords(val);
+		if ((int)keywords.Status == -5002)
+		{
+			return "Cancel";
+		}
+		if ((int)keywords.Status == 5100)
+		{
+			if (keywords.StringResult == "B")
+			{
+				return "Block";
+			}
+			if (keywords.StringResult == "C")
+			{
+				return "Cancel";
+			}
+		}
+		return "Replace";
+	}
+
+	private static List<PanelSlot> BuildInternalPreviewSlots(CabinetFrame previewFrame, string baseSpaceId, string panelType, PanelOrient orient, int panelCount, double? posOverride)
+	{
+		List<PanelSlot> list = new List<PanelSlot>();
+		if (previewFrame == null || string.IsNullOrWhiteSpace(baseSpaceId))
+		{
+			return list;
+		}
+		SpaceNode spaceNode = FindSpaceById(previewFrame.RootSpace, baseSpaceId);
+		if (spaceNode == null)
+		{
+			return list;
+		}
+		List<double> panelInsertionPositions = GetPanelInsertionPositions(previewFrame, spaceNode, panelType, orient, panelCount, posOverride);
+		if (panelInsertionPositions.Count == 0)
+		{
+			return list;
+		}
+		foreach (double item in panelInsertionPositions)
+		{
+			SpaceNode spaceNode2 = (double.IsNaN(item) ? spaceNode : ResolveTargetSpaceForPanel(previewFrame, spaceNode, orient, item));
+			if (spaceNode2 == null)
+			{
+				return new List<PanelSlot>();
+			}
+			PanelSlot panelSlot = previewFrame.AddPanel(panelType, orient, spaceNode2, (panelInsertionPositions.Count != 1) ? new double?(item) : (double.IsNaN(item) ? posOverride : new double?(item)));
+			if (!HasValidPanelGeometry(panelSlot))
+			{
+				previewFrame.RemovePanel(panelSlot.PanelId);
+				return new List<PanelSlot>();
+			}
+			list.Add(panelSlot);
+		}
+		return list;
+	}
+
+	private static SpaceNode FindSpaceById(SpaceNode node, string spaceId)
+	{
+		if (node == null || string.IsNullOrWhiteSpace(spaceId))
+		{
+			return null;
+		}
+		if (string.Equals(node.Id, spaceId, StringComparison.OrdinalIgnoreCase))
+		{
+			return node;
+		}
+		SpaceNode spaceNode = FindSpaceById(node.Left, spaceId);
+		if (spaceNode != null)
+		{
+			return spaceNode;
+		}
+		return FindSpaceById(node.Right, spaceId);
+	}
+
+	private static void ShowSpacePreview(CabinetFrame frame, SpaceNode space)
+	{
+		ClearAttachmentPreview();
+		if (frame != null && space != null)
+		{
+			Point3d origin = frame.Origin;
+			double num = origin.X + space.MinX;
+			origin = frame.Origin;
+			double num2 = origin.Y + space.MinY;
+			origin = frame.Origin;
+			Point3d basePoint = default(Point3d);
+			basePoint = new Point3d(num, num2, origin.Z + space.MinZ);
+			AddPreviewBox(basePoint, space.Width, space.Depth, space.Height);
+		}
+	}
+
+	private static void ShowPanelPreview(CabinetFrame frame, IEnumerable<PanelSlot> slots)
+	{
+		ClearAttachmentPreview();
+		if (frame == null || slots == null)
+		{
+			return;
+		}
+		foreach (PanelSlot slot in slots)
+		{
+			GetPanelWorldBox(frame, slot, out var basePoint, out var len3d, out var wid3d, out var hgt3d);
+			if (!(len3d <= 0.001) && !(wid3d <= 0.001) && !(hgt3d <= 0.001))
+			{
+				AddPreviewBox(basePoint, len3d, wid3d, hgt3d);
+			}
+		}
+	}
+
+	private static void AddPreviewBox(Point3d basePoint, double len3d, double wid3d, double hgt3d)
+	{
+		if (!(len3d <= 0.001) && !(wid3d <= 0.001) && !(hgt3d <= 0.001))
+		{
+			Point3d val = basePoint;
+			Point3d val2 = default(Point3d);
+			val2 = new Point3d(basePoint.X + len3d, basePoint.Y, basePoint.Z);
+			Point3d val3 = default(Point3d);
+			val3 = new Point3d(basePoint.X + len3d, basePoint.Y + wid3d, basePoint.Z);
+			Point3d val4 = default(Point3d);
+			val4 = new Point3d(basePoint.X, basePoint.Y + wid3d, basePoint.Z);
+			Point3d val5 = default(Point3d);
+			val5 = new Point3d(basePoint.X, basePoint.Y, basePoint.Z + hgt3d);
+			Point3d val6 = default(Point3d);
+			val6 = new Point3d(basePoint.X + len3d, basePoint.Y, basePoint.Z + hgt3d);
+			Point3d val7 = default(Point3d);
+			val7 = new Point3d(basePoint.X + len3d, basePoint.Y + wid3d, basePoint.Z + hgt3d);
+			Point3d val8 = default(Point3d);
+			val8 = new Point3d(basePoint.X, basePoint.Y + wid3d, basePoint.Z + hgt3d);
+			(Point3d, Point3d)[] array = new(Point3d, Point3d)[12]
+			{
+				(val, val2),
+				(val2, val3),
+				(val3, val4),
+				(val4, val),
+				(val5, val6),
+				(val6, val7),
+				(val7, val8),
+				(val8, val5),
+				(val, val5),
+				(val2, val6),
+				(val3, val7),
+				(val4, val8)
+			};
+			TransientManager currentTransientManager = TransientManager.CurrentTransientManager;
+			IntegerCollection val9 = new IntegerCollection();
+			Solid3d val10 = new Solid3d();
+			((Entity)val10).SetDatabaseDefaults();
+			val10.CreateBox(len3d, wid3d, hgt3d);
+			Point3d val11 = default(Point3d);
+			val11 = new Point3d(basePoint.X + len3d / 2.0, basePoint.Y + wid3d / 2.0, basePoint.Z + hgt3d / 2.0);
+			((Entity)val10).TransformBy(Matrix3d.Displacement(val11.GetAsVector()));
+			((Entity)val10).Color = Color.FromRgb(byte.MaxValue, (byte)0, (byte)0);
+			((Entity)val10).Transparency = new Transparency((byte)160);
+			_attachmentPreviewEntities.Add((Entity)val10);
+			currentTransientManager.AddTransient((Drawable)(object)val10, (TransientDrawingMode)2, 128, val9);
+			(Point3d, Point3d)[] array2 = array;
+			for (int i = 0; i < array2.Length; i++)
+			{
+				(Point3d, Point3d) tuple = array2[i];
+				Line val12 = new Line(tuple.Item1, tuple.Item2)
+				{
+					ColorIndex = 1
+				};
+				_attachmentPreviewEntities.Add((Entity)val12);
+				currentTransientManager.AddTransient((Drawable)(object)val12, (TransientDrawingMode)2, 128, val9);
+			}
+		}
+	}
+
+	private static void ClearAttachmentPreview()
+	{
+		if (_attachmentPreviewEntities.Count == 0)
+		{
+			return;
+		}
+		TransientManager currentTransientManager = TransientManager.CurrentTransientManager;
+		IntegerCollection val = new IntegerCollection();
+		foreach (Entity attachmentPreviewEntity in _attachmentPreviewEntities)
+		{
+			try
+			{
+				currentTransientManager.EraseTransient((Drawable)(object)attachmentPreviewEntity, val);
+				((DisposableWrapper)attachmentPreviewEntity).Dispose();
+			}
+			catch
+			{
+			}
+		}
+		_attachmentPreviewEntities.Clear();
+	}
+
+	private static void EraseSlotsFromDrawing(Database db, Transaction tr, IEnumerable<PanelSlot> slots)
+	{
+		if ((DisposableWrapper)(object)db == (DisposableWrapper)null || (DisposableWrapper)(object)tr == (DisposableWrapper)null || slots == null)
+		{
+			return;
+		}
+		foreach (PanelSlot slot in slots)
+		{
+			if (slot == null || string.IsNullOrWhiteSpace(slot.EntityHandle) || !long.TryParse(slot.EntityHandle, out var result))
+			{
+				continue;
+			}
+			try
+			{
+				ObjectId objectId = db.GetObjectId(false, new Handle(result), 0);
+				if (!objectId.IsNull && !objectId.IsErased)
+				{
+					DBObject obj = tr.GetObject(objectId, (OpenMode)1, false);
+					Entity val = (Entity)(object)((obj is Entity) ? obj : null);
+					if ((DisposableWrapper)(object)val != (DisposableWrapper)null && !((DBObject)val).IsErased)
+					{
+						((DBObject)val).Erase();
+					}
+				}
+			}
+			catch
+			{
+			}
+		}
+	}
+
+	private static List<double> GetPanelInsertionPositions(CabinetFrame frame, SpaceNode baseSpace, string panelType, PanelOrient orient, int panelCount, double? posOverride)
+	{
+		List<double> list = new List<double>();
+		if (panelCount <= 1)
+		{
+			list.Add(posOverride ?? double.NaN);
+			return list;
+		}
+		if (panelType == "灞傛澘" && orient == PanelOrient.Horizontal)
+		{
+			double num = baseSpace.Height - (double)panelCount * frame.DefaultThickness;
+			if (num < 0.0)
+			{
+				return list;
+			}
+			double num2 = num / (double)(panelCount + 1);
+			for (int i = 0; i < panelCount; i++)
+			{
+				list.Add(baseSpace.MinZ + num2 * (double)(i + 1) + frame.DefaultThickness * (double)i);
+			}
+		}
+		else if (panelType == "绔嬫澘" && orient == PanelOrient.VerticalDivider)
+		{
+			double num3 = baseSpace.Width - (double)panelCount * frame.DefaultThickness;
+			if (num3 < 0.0)
+			{
+				return list;
+			}
+			double num4 = num3 / (double)(panelCount + 1);
+			for (int j = 0; j < panelCount; j++)
+			{
+				list.Add(baseSpace.MinX + num4 * (double)(j + 1) + frame.DefaultThickness * (double)j);
+			}
+		}
+		return list;
+	}
+
+	private static SpaceNode ResolveTargetSpaceForPanel(CabinetFrame frame, SpaceNode baseSpace, PanelOrient orient, double insertPos)
+	{
+		Point3d origin = frame.Origin;
+		double num = origin.X + (baseSpace.MinX + baseSpace.MaxX) / 2.0;
+		origin = frame.Origin;
+		double num2 = origin.Y + (baseSpace.MinY + baseSpace.MaxY) / 2.0;
+		origin = frame.Origin;
+		double num3 = origin.Z + (baseSpace.MinZ + baseSpace.MaxZ) / 2.0;
+		double num4 = Math.Max(frame.DefaultThickness * 0.5, 0.5);
+		switch (orient)
+		{
+		case PanelOrient.Horizontal:
+			origin = frame.Origin;
+			num3 = origin.Z + insertPos + num4;
+			break;
+		case PanelOrient.VerticalDivider:
+			origin = frame.Origin;
+			num = origin.X + insertPos + num4;
+			break;
+		}
+		return frame.FindSpace(new Point3d(num, num2, num3));
+	}
+
+	private static bool HasValidPanelGeometry(PanelSlot slot)
+	{
+		if (slot == null)
+		{
+			return false;
+		}
+		return slot.ComputedLength > 0.001 && slot.ComputedWidth > 0.001 && slot.ComputedThickness > 0.001;
+	}
+
+	private static void GetPanelWorldBox(CabinetFrame frame, PanelSlot slot, out Point3d basePoint, out double len3d, out double wid3d, out double hgt3d)
+	{
+		len3d = 0.0;
+		wid3d = 0.0;
+		hgt3d = 0.0;
+		basePoint = Point3d.Origin;
+		if (frame != null && slot != null)
+		{
+			switch (slot.Orient)
+			{
+			case PanelOrient.Horizontal:
+				len3d = slot.ComputedLength;
+				wid3d = slot.ComputedWidth;
+				hgt3d = slot.ComputedThickness;
+				break;
+			case PanelOrient.LeftSide:
+			case PanelOrient.RightSide:
+			case PanelOrient.VerticalDivider:
+				len3d = slot.ComputedThickness;
+				wid3d = slot.ComputedWidth;
+				hgt3d = slot.ComputedLength;
+				break;
+			case PanelOrient.Back:
+				len3d = slot.ComputedLength;
+				wid3d = slot.ComputedThickness;
+				hgt3d = slot.ComputedWidth;
+				break;
+			case PanelOrient.Front:
+				len3d = slot.ComputedWidth;
+				wid3d = slot.ComputedThickness;
+				hgt3d = slot.ComputedLength;
+				break;
+			default:
+				len3d = slot.ComputedLength;
+				wid3d = slot.ComputedWidth;
+				hgt3d = slot.ComputedThickness;
+				break;
+			}
+			Point3d origin = frame.Origin;
+			double num = origin.X + slot.PosX;
+			origin = frame.Origin;
+			double num2 = origin.Y + slot.PosY;
+			origin = frame.Origin;
+			basePoint = new Point3d(num, num2, origin.Z + slot.PosZ);
+		}
+	}
+
+	internal static void CreatePanelSolidEntity(CabinetFrame frame, PanelSlot slot, BlockTableRecord modelSpace, Transaction tr)
+	{
+		Solid3d val = new Solid3d();
+		((Entity)val).SetDatabaseDefaults();
+		GetPanelWorldBox(frame, slot, out var basePoint, out var len3d, out var wid3d, out var hgt3d);
+		if (len3d <= 0.001 || wid3d <= 0.001 || hgt3d <= 0.001)
+		{
+			throw new Autodesk.AutoCAD.Runtime.Exception((ErrorStatus)151, $"鏃犳晥鏉夸欢灏哄: {len3d:F3}脳{wid3d:F3}脳{hgt3d:F3}");
+		}
+		val.CreateBox(len3d, wid3d, hgt3d);
+		Point3d val2 = default(Point3d);
+		val2 = new Point3d(basePoint.X + len3d / 2.0, basePoint.Y + wid3d / 2.0, basePoint.Z + hgt3d / 2.0);
+		((Entity)val).TransformBy(Matrix3d.Displacement(val2.GetAsVector()));
+		modelSpace.AppendEntity((Entity)val);
+		tr.AddNewlyCreatedDBObject((DBObject)(object)val, true);
+		PanelInfo obj = new PanelInfo
+		{
+			OrderId = slot.OrderId,
+			CabinetId = slot.CabinetId,
+			RoomId = slot.RoomId,
+			PanelName = slot.GetPanelName(frame.CabinetId),
+			Material = slot.Material,
+			Length = slot.ComputedLength,
+			Width = slot.ComputedWidth,
+			Height = slot.ComputedThickness,
+			ExtraLength = slot.CuttingLength,
+			ExtraWidth = slot.CuttingWidth,
+			ExtraHeight = slot.ComputedThickness,
+			Remarks = ((slot.PlacementKind == PanelPlacementKind.AttachmentZone) ? slot.GetAttachmentParameterSummary() : ""),
+			EdgeBanding = slot.GetEdgeInfoString(),
+			EdgeTop = (slot.EdgeTop ?? ""),
+			EdgeBottom = (slot.EdgeBottom ?? ""),
+			EdgeLeft = (slot.EdgeLeft ?? ""),
+			EdgeRight = (slot.EdgeRight ?? ""),
+			TextureDirection = slot.TextureDirection
+		};
+		Handle handle = ((DBObject)val).Handle;
+		obj.EntityId = handle.Value.ToString();
+		PanelInfo data = obj;
+		PanelInfoService.SavePanelInfo((DBObject)(object)val, data, tr);
+		handle = ((DBObject)val).Handle;
+		slot.EntityHandle = handle.Value.ToString();
+	}
+
+	[CommandMethod("SCBJ")]
+	public void DeletePanelFromFrame()
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		if ((DisposableWrapper)(object)mdiActiveDocument == (DisposableWrapper)null)
+		{
+			return;
+		}
+		Editor editor = mdiActiveDocument.Editor;
+		Database database = mdiActiveDocument.Database;
+		try
+		{
+			CabinetFrameService.LoadAll();
+			PromptSelectionOptions val = new PromptSelectionOptions
+			{
+				MessageForAdding = "\n璇烽€夋嫨瑕佸垹闄ょ殑鏉夸欢: "
+			};
+			SelectionFilter val2 = new SelectionFilter((TypedValue[])(object)new TypedValue[1]
+			{
+				new TypedValue(0, (object)"3DSOLID")
+			});
+			PromptSelectionResult selection = editor.GetSelection(val, val2);
+			if ((int)selection.Status != 5100 || selection.Value.Count == 0)
+			{
+				return;
+			}
+			int num = 0;
+			Transaction val3 = database.TransactionManager.StartTransaction();
+			try
+			{
+				foreach (SelectedObject item in selection.Value)
+				{
+					SelectedObject val4 = item;
+					DBObject obj = val3.GetObject(val4.ObjectId, (OpenMode)0);
+					Entity val5 = (Entity)(object)((obj is Entity) ? obj : null);
+					if ((DisposableWrapper)(object)val5 == (DisposableWrapper)null)
+					{
+						continue;
+					}
+					PanelInfo panelInfo = PanelInfoService.GetPanelInfo((DBObject)(object)val5, val3);
+					if (panelInfo == null)
+					{
+						continue;
+					}
+					Handle handle = ((DBObject)val5).Handle;
+					string handleStr = handle.Value.ToString();
+					CabinetFrame cabinetFrame = null;
+					PanelSlot panelSlot = null;
+					foreach (CabinetFrame allFrame in CabinetFrameService.GetAllFrames())
+					{
+						PanelSlot panelSlot2 = allFrame.Panels.FirstOrDefault((PanelSlot p) => p.EntityHandle == handleStr);
+						if (panelSlot2 != null)
+						{
+							cabinetFrame = allFrame;
+							panelSlot = panelSlot2;
+							break;
+						}
+					}
+					if (cabinetFrame != null && panelSlot != null)
+					{
+						cabinetFrame.RemovePanel(panelSlot.PanelId);
+						CabinetFrameService.SaveFrame(cabinetFrame);
+						editor.WriteMessage($"\n宸蹭粠澶栨鍒犻櫎: {panelSlot.PanelType} ({panelSlot.GetPanelName(cabinetFrame.CabinetId)})");
+					}
+					DBObject obj2 = val3.GetObject(val4.ObjectId, (OpenMode)1);
+					Entity val6 = (Entity)(object)((obj2 is Entity) ? obj2 : null);
+					if ((DisposableWrapper)(object)val6 != (DisposableWrapper)null)
+					{
+						((DBObject)val6).Erase();
+						num++;
+					}
+				}
+				val3.Commit();
+			}
+			finally
+			{
+				((IDisposable)val3)?.Dispose();
+			}
+			editor.WriteMessage($"\n已删除 {num} 块板件。");
+		}
+		catch (Exception ex)
+		{
+			editor.WriteMessage("\n鍒犻櫎鏉夸欢鏃跺嚭閿? " + ex.Message);
+		}
+	}
+
+	[CommandMethod("EDBJ")]
+	public void EditPanelInFrame()
+	{
+		Document mdiActiveDocument = Application.DocumentManager.MdiActiveDocument;
+		if ((DisposableWrapper)(object)mdiActiveDocument == (DisposableWrapper)null)
+		{
+			return;
+		}
+		Editor editor = mdiActiveDocument.Editor;
+		Database database = mdiActiveDocument.Database;
+		try
+		{
+			CabinetFrameService.LoadAll();
+			PromptSelectionOptions val = new PromptSelectionOptions
+			{
+				MessageForAdding = "\n璇烽€夋嫨瑕佺紪杈戠殑鏉夸欢: "
+			};
+			SelectionFilter val2 = new SelectionFilter((TypedValue[])(object)new TypedValue[1]
+			{
+				new TypedValue(0, (object)"3DSOLID")
+			});
+			PromptSelectionResult selection = editor.GetSelection(val, val2);
+			if ((int)selection.Status != 5100 || selection.Value.Count == 0)
+			{
+				return;
+			}
+			Transaction val3 = database.TransactionManager.StartTransaction();
+			try
+			{
+				foreach (SelectedObject item in selection.Value)
+				{
+					SelectedObject val4 = item;
+					DBObject obj = val3.GetObject(val4.ObjectId, (OpenMode)0);
+					Entity val5 = (Entity)(object)((obj is Entity) ? obj : null);
+					if ((DisposableWrapper)(object)val5 == (DisposableWrapper)null)
+					{
+						continue;
+					}
+					PanelInfo panelInfo = PanelInfoService.GetPanelInfo((DBObject)(object)val5, val3);
+					if (panelInfo == null)
+					{
+						continue;
+					}
+					Handle handle = ((DBObject)val5).Handle;
+					string handleStr = handle.Value.ToString();
+					CabinetFrame cabinetFrame = null;
+					PanelSlot panelSlot = null;
+					foreach (CabinetFrame allFrame in CabinetFrameService.GetAllFrames())
+					{
+						PanelSlot panelSlot2 = allFrame.Panels.FirstOrDefault((PanelSlot p) => p.EntityHandle == handleStr);
+						if (panelSlot2 != null)
+						{
+							cabinetFrame = allFrame;
+							panelSlot = panelSlot2;
+							break;
+						}
+					}
+					if (cabinetFrame == null || panelSlot == null)
+					{
+						editor.WriteMessage("\n板件 " + panelInfo.PanelName + " 不在任何外框中。");
+						continue;
+					}
+					editor.WriteMessage($"\n褰撳墠鏉夸欢: {panelSlot.PanelType} 灏哄={panelSlot.ComputedLength:F0}脳{panelSlot.ComputedWidth:F0}脳{panelSlot.ComputedThickness:F0}");
+					editor.WriteMessage($"\n  瑁佸垏灏哄: {panelSlot.CuttingLength:F1}脳{panelSlot.CuttingWidth:F1}");
+					editor.WriteMessage("\n  灏佽竟: " + panelSlot.GetEdgeInfoString());
+					PromptKeywordOptions val6 = new PromptKeywordOptions("\n缂栬緫閫夐」 [绉诲姩浣嶇疆(M)/灏佽竟淇敼(E)/鏉愯川淇敼(A)] <鍙栨秷>: ");
+					((PromptOptions)val6).Keywords.Add("M");
+					((PromptOptions)val6).Keywords.Add("E");
+					((PromptOptions)val6).Keywords.Add("A");
+					val6.AllowNone = true;
+					PromptResult keywords = editor.GetKeywords(val6);
+					if ((int)keywords.Status != 5100)
+					{
+						continue;
+					}
+					switch (keywords.StringResult)
+					{
+					case "M":
+						if (panelSlot.Orient == PanelOrient.Horizontal)
+						{
+							PromptDoubleOptions val12 = new PromptDoubleOptions("\n杈撳叆鏂扮殑Z浣嶇疆(mm): ");
+							val12.DefaultValue = panelSlot.PosZ;
+							PromptDoubleResult val13 = editor.GetDouble(val12);
+							if ((int)((PromptResult)val13).Status == 5100)
+							{
+								panelSlot.PosZ = val13.Value;
+								MoveSolid3d(val3, val4.ObjectId, cabinetFrame, panelSlot);
+								UpdatePanelInfoFromSlot(val3, val4.ObjectId, cabinetFrame, panelSlot);
+							}
+						}
+						else if (panelSlot.Orient == PanelOrient.VerticalDivider)
+						{
+							PromptDoubleOptions val14 = new PromptDoubleOptions("\n杈撳叆鏂扮殑X浣嶇疆(mm): ");
+							val14.DefaultValue = panelSlot.PosX;
+							PromptDoubleResult val15 = editor.GetDouble(val14);
+							if ((int)((PromptResult)val15).Status == 5100)
+							{
+								panelSlot.PosX = val15.Value;
+								MoveSolid3d(val3, val4.ObjectId, cabinetFrame, panelSlot);
+								UpdatePanelInfoFromSlot(val3, val4.ObjectId, cabinetFrame, panelSlot);
+							}
+						}
+						else
+						{
+							editor.WriteMessage("\n该类型板件不支持移动。");
+						}
+						cabinetFrame.RebuildSpaceTree();
+						break;
+					case "E":
+					{
+						PromptKeywordOptions val9 = new PromptKeywordOptions("\n淇敼鍝潯杈?[涓?T)/涓?B)/宸?L)/鍙?R)] <鍙栨秷>: ");
+						((PromptOptions)val9).Keywords.Add("T");
+						((PromptOptions)val9).Keywords.Add("B");
+						((PromptOptions)val9).Keywords.Add("L");
+						((PromptOptions)val9).Keywords.Add("R");
+						val9.AllowNone = true;
+						PromptResult keywords2 = editor.GetKeywords(val9);
+						if ((int)keywords2.Status != 5100)
+						{
+							break;
+						}
+						string stringResult = keywords2.StringResult;
+						if (1 == 0)
+						{
+						}
+						string text = stringResult switch
+						{
+							"T" => "上",
+							"B" => "下",
+							"L" => "左",
+							"R" => "右",
+							_ => "",
+						};
+						if (1 == 0)
+						{
+						}
+						string text2 = text;
+						if (!string.IsNullOrEmpty(text2))
+						{
+							PromptStringOptions val10 = new PromptStringOptions("\n杈撳叆" + text2 + "杈瑰皝杈规潗鏂?绌?鏃犲皝杈?: ");
+							val10.AllowSpaces = true;
+							PromptResult val11 = editor.GetString(val10);
+							string text3 = (((int)val11.Status != 5100) ? "" : (val11.StringResult?.Trim() ?? ""));
+							switch (keywords2.StringResult)
+							{
+							case "T":
+								panelSlot.EdgeTop = text3;
+								break;
+							case "B":
+								panelSlot.EdgeBottom = text3;
+								break;
+							case "L":
+								panelSlot.EdgeLeft = text3;
+								break;
+							case "R":
+								panelSlot.EdgeRight = text3;
+								break;
+							}
+							UpdatePanelInfoFromSlot(val3, val4.ObjectId, cabinetFrame, panelSlot);
+							editor.WriteMessage("\n灏佽竟宸叉洿鏂? " + panelSlot.GetEdgeInfoString());
+							editor.WriteMessage($"\n瑁佸垏灏哄: {panelSlot.CuttingLength:F1}脳{panelSlot.CuttingWidth:F1}");
+						}
+						break;
+					}
+					case "A":
+					{
+						PromptStringOptions val7 = new PromptStringOptions("\n杈撳叆鏂版潗璐? ");
+						val7.AllowSpaces = true;
+						PromptResult val8 = editor.GetString(val7);
+						if ((int)val8.Status == 5100)
+						{
+							panelSlot.Material = val8.StringResult?.Trim() ?? panelSlot.Material;
+							UpdatePanelInfoFromSlot(val3, val4.ObjectId, cabinetFrame, panelSlot);
+							editor.WriteMessage("\n鏉愯川宸叉洿鏂? " + panelSlot.Material);
+						}
+						break;
+					}
+					}
+					CabinetFrameService.SaveFrame(cabinetFrame);
+				}
+				val3.Commit();
+			}
+			finally
+			{
+				((IDisposable)val3)?.Dispose();
+			}
+		}
+		catch (Exception ex)
+		{
+			editor.WriteMessage("\n缂栬緫鏉夸欢鏃跺嚭閿? " + ex.Message);
+		}
+	}
+
+	private void MoveSolid3d(Transaction tr, ObjectId objId, CabinetFrame frame, PanelSlot slot)
+	{
+		DBObject obj = tr.GetObject(objId, (OpenMode)1);
+		Solid3d val = (Solid3d)(object)((obj is Solid3d) ? obj : null);
+		if (!((DisposableWrapper)(object)val == (DisposableWrapper)null))
+		{
+			double num;
+			double num2;
+			double num3;
+			switch (slot.Orient)
+			{
+			case PanelOrient.Horizontal:
+				num = slot.ComputedLength;
+				num2 = slot.ComputedWidth;
+				num3 = slot.ComputedThickness;
+				break;
+			case PanelOrient.LeftSide:
+			case PanelOrient.RightSide:
+			case PanelOrient.VerticalDivider:
+				num = slot.ComputedThickness;
+				num2 = slot.ComputedWidth;
+				num3 = slot.ComputedLength;
+				break;
+			case PanelOrient.Back:
+				num = slot.ComputedLength;
+				num2 = slot.ComputedThickness;
+				num3 = slot.ComputedWidth;
+				break;
+			case PanelOrient.Front:
+				num = slot.ComputedWidth;
+				num2 = slot.ComputedThickness;
+				num3 = slot.ComputedLength;
+				break;
+			default:
+				num = slot.ComputedLength;
+				num2 = slot.ComputedWidth;
+				num3 = slot.ComputedThickness;
+				break;
+			}
+			Point3d val2 = frame.Origin;
+			double num4 = val2.X + slot.PosX;
+			val2 = frame.Origin;
+			double num5 = val2.Y + slot.PosY;
+			val2 = frame.Origin;
+			double num6 = val2.Z + slot.PosZ;
+			Point3d val3 = default(Point3d);
+			val3 = new Point3d(num4 + num / 2.0, num5 + num2 / 2.0, num6 + num3 / 2.0);
+			Extents3d geometricExtents = ((Entity)val).GeometricExtents;
+			val2 = geometricExtents.MinPoint;
+			double x = val2.X;
+			val2 = geometricExtents.MaxPoint;
+			double num7 = (x + val2.X) / 2.0;
+			val2 = geometricExtents.MinPoint;
+			double y = val2.Y;
+			val2 = geometricExtents.MaxPoint;
+			double num8 = (y + val2.Y) / 2.0;
+			val2 = geometricExtents.MinPoint;
+			double z = val2.Z;
+			val2 = geometricExtents.MaxPoint;
+			Point3d val4 = default(Point3d);
+			val4 = new Point3d(num7, num8, (z + val2.Z) / 2.0);
+			Vector3d val5 = val3 - val4;
+			((Entity)val).TransformBy(Matrix3d.Displacement(val5));
+		}
+	}
+
+	private void UpdatePanelInfoFromSlot(Transaction tr, ObjectId objId, CabinetFrame frame, PanelSlot slot)
+	{
+		DBObject val = tr.GetObject(objId, (OpenMode)1);
+		if (!((DisposableWrapper)(object)val == (DisposableWrapper)null))
+		{
+			PanelInfo panelInfo = PanelInfoService.GetPanelInfo((val is Entity) ? val : null, tr);
+			if (panelInfo != null)
+			{
+				panelInfo.OrderId = slot.OrderId;
+				panelInfo.CabinetId = slot.CabinetId;
+				panelInfo.RoomId = slot.RoomId;
+				panelInfo.PanelName = slot.GetPanelName(frame.CabinetId);
+				panelInfo.Material = slot.Material;
+				panelInfo.Length = slot.ComputedLength;
+				panelInfo.Width = slot.ComputedWidth;
+				panelInfo.Height = slot.ComputedThickness;
+				panelInfo.ExtraLength = slot.CuttingLength;
+				panelInfo.ExtraWidth = slot.CuttingWidth;
+				panelInfo.ExtraHeight = slot.ComputedThickness;
+				panelInfo.Remarks = ((slot.PlacementKind == PanelPlacementKind.AttachmentZone) ? slot.GetAttachmentParameterSummary() : panelInfo.Remarks);
+				panelInfo.EdgeBanding = slot.GetEdgeInfoString();
+				panelInfo.EdgeTop = slot.EdgeTop ?? "";
+				panelInfo.EdgeBottom = slot.EdgeBottom ?? "";
+				panelInfo.EdgeLeft = slot.EdgeLeft ?? "";
+				panelInfo.EdgeRight = slot.EdgeRight ?? "";
+				panelInfo.TextureDirection = slot.TextureDirection;
+				PanelInfoService.SavePanelInfo(val, panelInfo, tr);
+			}
+		}
+	}
+}
+
+
+

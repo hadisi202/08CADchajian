@@ -1,0 +1,179 @@
+<Window x:Class="FurniturePlugin.BatchEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="批量编辑板件信息 (PLXG)" Height="650" Width="550"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResize"
+        Topmost="True">
+    <Window.Resources>
+        <Style TargetType="Label">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Margin" Value="0,3,8,3"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#0078D4"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="批量编辑板件信息 (PLXG)" FontSize="16" FontWeight="Bold"
+                   HorizontalAlignment="Center" Margin="0,0,0,10"/>
+
+        <!-- 可滚动编辑区 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="5,0">
+                <TextBlock Text="提示：勾选✓并填写内容的字段才会被批量修改，未勾选或空白字段保持原值。"
+                          Foreground="#666" FontSize="11" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="35"/>
+                        <ColumnDefinition Width="110"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 订单号 -->
+                    <CheckBox Grid.Row="0" Grid.Column="0" x:Name="OrderIdCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="0" Grid.Column="1" Content="订单号:"/>
+                    <TextBox Grid.Row="0" Grid.Column="2" x:Name="OrderIdTextBox"/>
+
+                    <!-- 柜号 -->
+                    <CheckBox Grid.Row="1" Grid.Column="0" x:Name="CabinetIdCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="1" Grid.Column="1" Content="柜号:"/>
+                    <TextBox Grid.Row="1" Grid.Column="2" x:Name="CabinetIdTextBox"/>
+
+                    <!-- 房间号 -->
+                    <CheckBox Grid.Row="2" Grid.Column="0" x:Name="RoomIdCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="2" Grid.Column="1" Content="房间号:"/>
+                    <TextBox Grid.Row="2" Grid.Column="2" x:Name="RoomIdTextBox"/>
+
+                    <!-- 板件名称 -->
+                    <CheckBox Grid.Row="3" Grid.Column="0" x:Name="PanelNameCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="3" Grid.Column="1" Content="板件名称:"/>
+                    <TextBox Grid.Row="3" Grid.Column="2" x:Name="PanelNameTextBox"/>
+
+                    <!-- 材质 -->
+                    <CheckBox Grid.Row="4" Grid.Column="0" x:Name="MaterialCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="4" Grid.Column="1" Content="材质:"/>
+                    <TextBox Grid.Row="4" Grid.Column="2" x:Name="MaterialTextBox"/>
+
+                    <!-- 裁切长 -->
+                    <CheckBox Grid.Row="5" Grid.Column="0" x:Name="ExtraLengthCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="5" Grid.Column="1" Content="裁切长(mm):"/>
+                    <TextBox Grid.Row="5" Grid.Column="2" x:Name="ExtraLengthTextBox"/>
+
+                    <!-- 裁切宽 -->
+                    <CheckBox Grid.Row="6" Grid.Column="0" x:Name="ExtraWidthCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="6" Grid.Column="1" Content="裁切宽(mm):"/>
+                    <TextBox Grid.Row="6" Grid.Column="2" x:Name="ExtraWidthTextBox"/>
+
+                    <!-- 裁切厚 -->
+                    <CheckBox Grid.Row="7" Grid.Column="0" x:Name="ExtraHeightCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="7" Grid.Column="1" Content="裁切厚(mm):"/>
+                    <TextBox Grid.Row="7" Grid.Column="2" x:Name="ExtraHeightTextBox"/>
+
+                    <!-- 上边封边 -->
+                    <CheckBox Grid.Row="8" Grid.Column="0" x:Name="EdgeTopCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="8" Grid.Column="1" Content="上边封边:"/>
+                    <TextBox Grid.Row="8" Grid.Column="2" x:Name="EdgeTopTextBox"/>
+
+                    <!-- 下边封边 -->
+                    <CheckBox Grid.Row="9" Grid.Column="0" x:Name="EdgeBottomCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="9" Grid.Column="1" Content="下边封边:"/>
+                    <TextBox Grid.Row="9" Grid.Column="2" x:Name="EdgeBottomTextBox"/>
+
+                    <!-- 左边封边 -->
+                    <CheckBox Grid.Row="10" Grid.Column="0" x:Name="EdgeLeftCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="10" Grid.Column="1" Content="左边封边:"/>
+                    <TextBox Grid.Row="10" Grid.Column="2" x:Name="EdgeLeftTextBox"/>
+
+                    <!-- 右边封边 -->
+                    <CheckBox Grid.Row="11" Grid.Column="0" x:Name="EdgeRightCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="11" Grid.Column="1" Content="右边封边:"/>
+                    <TextBox Grid.Row="11" Grid.Column="2" x:Name="EdgeRightTextBox"/>
+
+                    <!-- 板件形状 -->
+                    <CheckBox Grid.Row="12" Grid.Column="0" x:Name="PanelShapeCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="12" Grid.Column="1" Content="板件形状:"/>
+                    <ComboBox Grid.Row="12" Grid.Column="2" x:Name="PanelShapeComboBox" Height="25" Margin="0,3">
+                        <ComboBoxItem Content="不修改" IsSelected="True"/>
+                        <ComboBoxItem Content="常规矩形板(AABB)"/>
+                        <ComboBoxItem Content="旋转过的矩形板(OBB)"/>
+                        <ComboBoxItem Content="异形板(OBB)"/>
+                    </ComboBox>
+
+                    <!-- 油漆 -->
+                    <CheckBox Grid.Row="13" Grid.Column="0" x:Name="PaintCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="13" Grid.Column="1" Content="油漆:"/>
+                    <TextBox Grid.Row="13" Grid.Column="2" x:Name="PaintTextBox"/>
+
+                    <!-- 备注 -->
+                    <CheckBox Grid.Row="14" Grid.Column="0" x:Name="RemarksCheckBox" VerticalAlignment="Center"/>
+                    <Label Grid.Row="14" Grid.Column="1" Content="备注:"/>
+                    <TextBox Grid.Row="14" Grid.Column="2" x:Name="RemarksTextBox" Height="50" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+
+                    <!-- 选中数量 -->
+                    <Label Grid.Row="15" Grid.Column="1" Content="处理数量:" FontSize="11"/>
+                    <TextBlock Grid.Row="15" Grid.Column="2" x:Name="SelectedCountTextBlock" VerticalAlignment="Center" FontWeight="Bold" Foreground="#0078D4" FontSize="12"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 按钮区域 -->
+        <Grid Grid.Row="2" Margin="0,15,0,5">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                <Button Content="全选" Width="80" Height="30" Click="SelectAllButton_Click"/>
+                <Button Content="取消全选" Width="80" Height="30" Click="UnselectAllButton_Click"/>
+                <Button Content="撤销" Width="80" Height="30" Click="UndoButton_Click" x:Name="UndoButton" IsEnabled="False"/>
+                <Button Content="拾取板件信息" Width="110" Height="30" Click="GetPanelDataButton_Click" x:Name="GetPanelDataButton"
+                        Background="#FF9800" Foreground="White" FontWeight="Bold"/>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                <Button Content="✓ 保存" Width="100" Height="36" Click="OkButton_Click"
+                        Style="{StaticResource PrimaryButton}" IsDefault="True" Margin="10,0"/>
+                <Button Content="✗ 取消" Width="100" Height="36" Click="CancelButton_Click" Margin="10,0"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

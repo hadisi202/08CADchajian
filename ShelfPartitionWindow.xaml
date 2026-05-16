@@ -1,0 +1,245 @@
+<Window x:Class="FurniturePlugin.ShelfPartitionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="层板/竖隔板参数化建模" Height="700" Width="900"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        WindowStyle="SingleBorderWindow">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题栏 -->
+        <Border Grid.Row="0" Background="#FF2E3440" Padding="15,10">
+            <TextBlock Text="层板/竖隔板参数化建模" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+        </Border>
+        
+        <!-- 主要内容区域 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20">
+            <StackPanel>
+                <!-- 基础参数组 -->
+                <GroupBox Header="基础参数" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <Label Grid.Row="0" Grid.Column="0" Content="柜体宽度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Name="CabinetWidthTextBox" Text="800" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="1" Grid.Column="0" Content="柜体深度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Name="CabinetDepthTextBox" Text="600" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="2" Grid.Column="0" Content="柜体高度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Name="CabinetHeightTextBox" Text="2400" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="3" Grid.Column="0" Content="板件厚度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Name="PanelThicknessTextBox" Text="18" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="4" Grid.Column="0" Content="侧板厚度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" Name="SidePanelThicknessTextBox" Text="18" Margin="5" Padding="5"/>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 层板配置组 -->
+                <GroupBox Header="层板配置" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <CheckBox Grid.Row="0" Grid.Column="0" Name="CreateShelvesCheckBox" Content="创建层板" IsChecked="True" Margin="0,5"/>
+                        <Label Grid.Row="0" Grid.Column="1" Content="层板数量:" VerticalAlignment="Center"/>
+                        
+                        <TextBox Grid.Row="1" Grid.Column="0" Name="ShelfCountTextBox" Text="3" Margin="5" Padding="5"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" Name="ShelfTypeComboBox" Margin="5" Padding="5">
+                            <ComboBoxItem Content="固定层板" IsSelected="True"/>
+                            <ComboBoxItem Content="活动层板"/>
+                        </ComboBox>
+                        
+                        <Label Grid.Row="2" Grid.Column="0" Content="层板间距(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Name="ShelfSpacingTextBox" Text="400" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="3" Grid.Column="0" Content="层板材质:" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="3" Grid.Column="1" Name="ShelfMaterialComboBox" Margin="5" Padding="5">
+                            <ComboBoxItem Content="三聚氰胺板" IsSelected="True"/>
+                            <ComboBoxItem Content="实木板"/>
+                            <ComboBoxItem Content="密度板"/>
+                            <ComboBoxItem Content="颗粒板"/>
+                        </ComboBox>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 竖隔板配置组 -->
+                <GroupBox Header="竖隔板配置" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <CheckBox Grid.Row="0" Grid.Column="0" Name="CreatePartitionsCheckBox" Content="创建竖隔板" IsChecked="False" Margin="0,5"/>
+                        <Label Grid.Row="0" Grid.Column="1" Content="竖隔板数量:" VerticalAlignment="Center"/>
+                        
+                        <TextBox Grid.Row="1" Grid.Column="0" Name="PartitionCountTextBox" Text="1" Margin="5" Padding="5"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" Name="PartitionTypeComboBox" Margin="5" Padding="5">
+                            <ComboBoxItem Content="通长竖隔板" IsSelected="True"/>
+                            <ComboBoxItem Content="分段竖隔板"/>
+                        </ComboBox>
+                        
+                        <Label Grid.Row="2" Grid.Column="0" Content="竖隔板间距(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Name="PartitionSpacingTextBox" Text="400" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="3" Grid.Column="0" Content="竖隔板材质:" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="3" Grid.Column="1" Name="PartitionMaterialComboBox" Margin="5" Padding="5">
+                            <ComboBoxItem Content="三聚氰胺板" IsSelected="True"/>
+                            <ComboBoxItem Content="实木板"/>
+                            <ComboBoxItem Content="密度板"/>
+                            <ComboBoxItem Content="颗粒板"/>
+                        </ComboBox>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 高级选项组 -->
+                <GroupBox Header="高级选项" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <CheckBox Grid.Row="0" Grid.Column="0" Name="AutoCalculateSpacingCheckBox" Content="自动计算间距" IsChecked="True" Margin="0,5"/>
+                        <CheckBox Grid.Row="0" Grid.Column="1" Name="IncludeEdgeBandingCheckBox" Content="包含封边" IsChecked="True" Margin="0,5"/>
+                        
+                        <Label Grid.Row="1" Grid.Column="0" Content="封边厚度(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Name="EdgeBandingThicknessTextBox" Text="0.5" Margin="5" Padding="5"/>
+                        
+                        <Label Grid.Row="2" Grid.Column="0" Content="预留间隙(mm):" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Name="ClearanceTextBox" Text="2" Margin="5" Padding="5"/>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 计算结果显示组 -->
+                <GroupBox Header="计算结果" Margin="0,0,0,15" Padding="15">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Label Grid.Column="0" Content="层板尺寸:" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="1" Name="ShelfSizeTextBlock" Text="764×600×18" VerticalAlignment="Center" Margin="10,0"/>
+                            
+                            <Label Grid.Column="2" Content="竖隔板尺寸:" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="3" Name="PartitionSizeTextBlock" Text="600×2364×18" VerticalAlignment="Center" Margin="10,0"/>
+                        </Grid>
+                        
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Label Grid.Column="0" Content="层板数量:" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="1" Name="ShelfCountResultTextBlock" Text="3" VerticalAlignment="Center" Margin="10,0"/>
+                            
+                            <Label Grid.Column="2" Content="竖隔板数量:" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="3" Name="PartitionCountResultTextBlock" Text="0" VerticalAlignment="Center" Margin="10,0"/>
+                        </Grid>
+                        
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Label Grid.Column="0" Content="层板总面积:" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="1" Name="ShelfTotalAreaTextBlock" Text="1.38 m²" VerticalAlignment="Center" Margin="10,0"/>
+                            
+                            <Label Grid.Column="2" Content="竖隔板总面积:" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="3" Name="PartitionTotalAreaTextBlock" Text="0.00 m²" VerticalAlignment="Center" Margin="10,0"/>
+                        </Grid>
+                        
+                        <Grid Grid.Row="3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <Label Grid.Column="0" Content="总面积:" FontWeight="Bold" FontSize="14"/>
+                            <TextBlock Grid.Column="1" Name="TotalAreaTextBlock" Text="1.38 m²" VerticalAlignment="Center" Margin="10,0" FontWeight="Bold" FontSize="14"/>
+                        </Grid>
+                    </Grid>
+                </GroupBox>
+                
+                <!-- 识别功能组 -->
+                <GroupBox Header="CAD识别功能" Margin="0,0,0,15" Padding="15">
+                    <StackPanel>
+                        <TextBlock Text="点击识别按钮，然后在CAD中选择参考对象来自动设置参数" 
+                                   TextWrapping="Wrap" Margin="0,0,0,10" Foreground="#FF666666"/>
+                        <Button Name="IdentifyButton" Content="🎯 识别CAD对象" Width="150" Height="40" 
+                                Background="#FF9C27B0" Foreground="White" BorderThickness="0" 
+                                FontSize="14" FontWeight="Bold" Click="IdentifyButton_Click"/>
+                    </StackPanel>
+                </GroupBox>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- 底部按钮栏 -->
+        <Border Grid.Row="2" Background="#FFF0F0F0" Padding="15,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Name="CalculateButton" Content="重新计算" Width="100" Height="35" Margin="0,0,10,0" 
+                        Background="#FF4CAF50" Foreground="White" BorderThickness="0" Click="CalculateButton_Click"/>
+                <Button Name="IdentifyQuickButton" Content="🎯 快速识别" Width="100" Height="35" Margin="0,0,10,0" 
+                        Background="#FF9C27B0" Foreground="White" BorderThickness="0" Click="IdentifyButton_Click"/>
+                <Button Name="CreateButton" Content="创建板件" Width="100" Height="35" Margin="0,0,10,0" 
+                        Background="#FFFF9800" Foreground="White" BorderThickness="0" Click="CreateButton_Click"/>
+                <Button Name="CancelButton" Content="取消" Width="80" Height="35" 
+                        Background="#FF757575" Foreground="White" BorderThickness="0" Click="CancelButton_Click"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>
